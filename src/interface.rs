@@ -1,5 +1,6 @@
 extern crate sdl2;
 
+use crate::engine::piece::Direction;
 use crate::engine::Engine;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -12,7 +13,6 @@ pub struct Interface {}
 impl Interface {
     pub fn run(engine: &mut Engine) {
         engine.place_cursor();
-        let piece = engine.cursor.as_mut().unwrap();
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
@@ -42,23 +42,31 @@ impl Interface {
                     Event::KeyDown {
                         keycode: Some(Keycode::Up),
                         ..
-                    } => piece.cw(),
+                    } => engine.try_move(Direction::CCW),
                     Event::KeyDown {
                         keycode: Some(Keycode::Down),
                         ..
-                    } => piece.ccw(),
+                    } => engine.try_move(Direction::CW),
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Left),
+                        ..
+                    } => engine.try_move(Direction::LEFT),
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Right),
+                        ..
+                    } => engine.try_move(Direction::RIGHT),
                     _ => {}
                 }
             }
             let now = Instant::now();
-            if now - last_tick > Duration::from_secs(1) {
-                piece.lower();
+            if now - last_tick > Duration::from_millis(250) {
+                engine.tick();
                 last_tick = now;
             }
             // The rest of the game loop goes here...
-            let minos = piece.get_cells();
+            canvas.set_draw_color(Color::RGB(200, 200, 200));
+            let minos = engine.cursor.as_mut().unwrap().get_cells();
             for mino in &minos {
-                canvas.set_draw_color(Color::RGB(0, 0, 0));
                 canvas
                     .draw_rect(Rect::new(
                         (mino.x * 10) as i32,
@@ -68,28 +76,20 @@ impl Interface {
                     ))
                     .unwrap();
             }
+
+            canvas.set_draw_color(Color::RGB(0, 0, 0));
+            for cell in engine.get_pile() {
+                canvas
+                    .draw_rect(Rect::new(
+                        (cell.x * 10) as i32,
+                        ((cell.y + 2) * 10) as i32,
+                        10 as u32,
+                        10 as u32,
+                    ))
+                    .unwrap();
+            }
             canvas.present();
             ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
-        }
-        for _ in 0..4 {
-            let minos = piece.get_cells();
-            for i in (-2 as isize)..2 {
-                for j in (4 as isize)..9 {
-                    let mut p: bool = false;
-                    for mino in &minos {
-                        if mino.x == j as isize && mino.y == i as isize {
-                            print!("X");
-                            p = true;
-                        }
-                    }
-                    if !p {
-                        print!(".");
-                    }
-                }
-                println!("");
-            }
-            println!("");
-            piece.cw();
         }
     }
 }

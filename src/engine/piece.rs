@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use lazy_static::lazy_static;
 
-use super::Coordinate;
+use super::{Board, Coordinate};
 
 lazy_static! {
     static ref SHAPES: HashMap<&'static str, HashMap<&'static str, &'static str>> =
@@ -79,6 +79,25 @@ pub enum Rotation {
     E,
     S,
     W,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Direction {
+    LEFT,
+    RIGHT,
+    CW,
+    CCW,
+}
+
+impl Direction {
+    pub fn value(&self) -> isize {
+        match *self {
+            Direction::LEFT => -1,
+            Direction::RIGHT => 1,
+            Direction::CW => panic!("Shouldn't be taking value on a CW"),
+            Direction::CCW => panic!("Shouldn't be taking value on a CCW"),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -190,6 +209,20 @@ impl Piece {
             .collect()
     }
 
+    pub fn can_move_lateral(&mut self, board: &Board, direction: Direction) -> bool {
+        self.check_new_position(board, |cell| Coordinate {
+            x: cell.x + direction.value(),
+            y: cell.y,
+        })
+    }
+
+    pub fn lateral_move(&mut self, direction: Direction) {
+        self.position = Coordinate {
+            x: self.position.x + direction.value(),
+            y: self.position.y,
+        };
+    }
+
     pub fn cw(&mut self) {
         match self.rotation {
             Rotation::N => self.rotation = Rotation::E,
@@ -208,10 +241,39 @@ impl Piece {
         }
     }
 
-    pub fn lower(&mut self) {
-        self.position = Coordinate {
-            x: self.position.x,
-            y: self.position.y + 1,
+    fn check_new_position(
+        &self,
+        board: &Board,
+        position_adjuster: impl Fn(Coordinate) -> Coordinate,
+    ) -> bool {
+        for cell in self.get_cells() {
+            let next_coord = position_adjuster(cell);
+
+            if next_coord.x < 0 || next_coord.x >= Board::WIDTH || next_coord.y >= Board::HEIGHT {
+                return false;
+            }
+
+            if board.filled(next_coord) {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn can_lower(&self, board: &Board) -> bool {
+        self.check_new_position(board, |cell| Coordinate {
+            x: cell.x,
+            y: cell.y + 1,
+        })
+    }
+
+    pub fn lower(&self) -> Piece {
+        Piece {
+            position: Coordinate {
+                x: self.position.x,
+                y: self.position.y + 1,
+            },
+            ..*self
         }
     }
 }
