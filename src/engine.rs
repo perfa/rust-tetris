@@ -10,8 +10,8 @@ pub type Coordinate = Vector2<isize>;
 pub struct Board([bool; Self::SIZE as usize]);
 
 impl Board {
-    const WIDTH: isize = 10;
-    const HEIGHT: isize = 20;
+    pub const WIDTH: isize = 10;
+    pub const HEIGHT: isize = 20;
     const SIZE: isize = (Self::WIDTH * Self::HEIGHT);
 
     fn blank() -> Self {
@@ -127,6 +127,24 @@ impl Engine {
                     self.board.add(c);
                     self.place_cursor();
                 }
+            }
+        }
+    }
+
+    pub fn drop(&mut self) {
+        match &self.cursor {
+            None => (),
+            Some(c) => {
+                let mut p = Piece {
+                    kind: c.kind.clone(),
+                    position: c.position.clone(),
+                    rotation: c.rotation.clone(),
+                };
+                while p.can_lower(&self.board) {
+                    p = p.lower();
+                }
+                self.board.add(&p);
+                self.place_cursor();
             }
         }
     }
