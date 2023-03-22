@@ -33,29 +33,31 @@ impl Matrix {
     }
 
     pub fn draw(&self, canvas: &mut WindowCanvas, engine: &Engine) {
-        let minos = engine.cursor.as_ref().unwrap().get_cells();
-        for mino in &minos {
-            if mino.y < 0 {
-                continue;
+        if let Some(cursor) = engine.cursor.as_ref() {
+            let minos = cursor.get_cells();
+            for mino in &minos {
+                if mino.y < 0 {
+                    continue;
+                }
+                canvas.set_draw_color(Color::RGB(150, 200, 150));
+                canvas
+                    .fill_rect(Rect::new(
+                        2 + self.x + (mino.x as i32) * Matrix::SQUARE_SIZE,
+                        2 + self.y + (mino.y as i32) * Matrix::SQUARE_SIZE,
+                        Matrix::SQUARE_SIZE as u32 - 4,
+                        Matrix::SQUARE_SIZE as u32 - 4,
+                    ))
+                    .unwrap();
+                canvas.set_draw_color(Color::RGB(200, 200, 200));
+                canvas
+                    .draw_rect(Rect::new(
+                        self.x + (mino.x as i32) * Matrix::SQUARE_SIZE,
+                        self.y + (mino.y as i32) * Matrix::SQUARE_SIZE,
+                        Matrix::SQUARE_SIZE as u32,
+                        Matrix::SQUARE_SIZE as u32,
+                    ))
+                    .unwrap();
             }
-            canvas.set_draw_color(Color::RGB(150, 200, 150));
-            canvas
-                .fill_rect(Rect::new(
-                    2 + self.x + (mino.x as i32) * Matrix::SQUARE_SIZE,
-                    2 + self.y + (mino.y as i32) * Matrix::SQUARE_SIZE,
-                    Matrix::SQUARE_SIZE as u32 - 4,
-                    Matrix::SQUARE_SIZE as u32 - 4,
-                ))
-                .unwrap();
-            canvas.set_draw_color(Color::RGB(200, 200, 200));
-            canvas
-                .draw_rect(Rect::new(
-                    self.x + (mino.x as i32) * Matrix::SQUARE_SIZE,
-                    self.y + (mino.y as i32) * Matrix::SQUARE_SIZE,
-                    Matrix::SQUARE_SIZE as u32,
-                    Matrix::SQUARE_SIZE as u32,
-                ))
-                .unwrap();
         }
 
         for cell in engine.get_pile() {
@@ -78,6 +80,29 @@ impl Matrix {
                 ))
                 .unwrap();
         }
+
+        for cell in engine.get_marked() {
+            canvas.set_draw_color(Color::RGB(10, 15, 10));
+            canvas
+                .fill_rect(Rect::new(
+                    2 + self.x + (cell.x as i32) * Matrix::SQUARE_SIZE,
+                    2 + self.y + (cell.y as i32) * Matrix::SQUARE_SIZE,
+                    Matrix::SQUARE_SIZE as u32 - 4,
+                    Matrix::SQUARE_SIZE as u32 - 4,
+                ))
+                .unwrap();
+            canvas.set_draw_color(Color::RGB(255, 100, 100));
+            canvas
+                .draw_rect(Rect::new(
+                    self.x + (cell.x as i32) * Matrix::SQUARE_SIZE,
+                    self.y + (cell.y as i32) * Matrix::SQUARE_SIZE,
+                    Matrix::SQUARE_SIZE as u32,
+                    Matrix::SQUARE_SIZE as u32,
+                ))
+                .unwrap();
+        }
+
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas
             .draw_rect(Rect::new(
                 self.x,
@@ -203,7 +228,10 @@ impl Interface {
                     let now = Instant::now();
                     if now - last_tick > Duration::from_millis(250) {
                         match engine.tick() {
-                            Err(_) => self.state = GameState::GameOver,
+                            Err(e) => {
+                                println!("GAMEOVERTICK {:?}", e);
+                                self.state = GameState::GameOver
+                            }
                             Ok(()) => (),
                         }
                         last_tick = now;

@@ -2,12 +2,28 @@ pub mod piece;
 
 use cgmath::Vector2;
 use rand::{prelude::SliceRandom, prelude::ThreadRng, thread_rng};
+use std::time::{Duration, Instant};
 
 use self::piece::{Direction, Kind, Piece, Rotation};
 
 pub type Coordinate = Vector2<isize>;
 
-pub struct Board([bool; Self::SIZE as usize]);
+#[derive(Clone, Copy, Debug)]
+pub struct Cell {
+    filled: bool,
+    marked: bool,
+}
+
+impl Cell {
+    fn new() -> Self {
+        Cell {
+            filled: false,
+            marked: false,
+        }
+    }
+}
+
+pub struct Board([Cell; Self::SIZE as usize], Vec<isize>);
 
 impl Board {
     pub const WIDTH: isize = 10;
@@ -15,7 +31,7 @@ impl Board {
     const SIZE: isize = (Self::WIDTH * Self::HEIGHT);
 
     fn blank() -> Self {
-        Self([false; Self::SIZE as usize])
+        Self([Cell::new(); Self::SIZE as usize], vec![])
     }
 
     fn filled(&self, coord: Coordinate) -> bool {
@@ -28,7 +44,7 @@ impl Board {
             return true;
         }
 
-        self.0[offset as usize]
+        self.0[offset as usize].filled
     }
 
     fn add(&mut self, piece: &Piece) -> Result<(), String> {
@@ -37,16 +53,81 @@ impl Board {
             if offset < 0 {
                 return Err("Integer underflow".to_string());
             }
-            self.0[offset as usize] = true
+            self.0[offset as usize].filled = true;
         }
         Ok(())
     }
+
+    fn has_patterns(&mut self) -> bool {
+        let mut found = false;
+        for row in 0..Board::HEIGHT {
+            let mut cells: Vec<usize> = vec![];
+            for col in 0..Board::WIDTH {
+                let offset = (row * Board::WIDTH + col) as usize;
+                if self.0[offset].filled {
+                    cells.push(offset);
+                }
+            }
+            if cells.len() == Board::WIDTH as usize {
+                found = true;
+                cells.into_iter().for_each(|c| self.0[c].marked = true);
+                self.1.push(row);
+            }
+        }
+        found
+    }
+
+    fn clear_marked(&mut self) -> bool {
+        let mut fallers = false;
+        let mut first_cleared_row_found = false;
+        for row in 0..Board::HEIGHT {
+            for col in 0..Board::WIDTH {
+                let offset = (row * Board::WIDTH + col) as usize;
+                if !first_cleared_row_found & self.0[offset].filled & self.0[offset].marked {
+                    fallers = true;
+                }
+                if self.0[offset].marked {
+                    self.0[offset] = Cell::new();
+                    first_cleared_row_found = true;
+                }
+            }
+        }
+        fallers
+    }
+
+    fn lower_floaters(&mut self) -> bool {
+        let mut fallers: Vec<usize> = vec![];
+
+        //We have the rows that are cleared in self.1
+
+        for row in 0..Board::HEIGHT {
+            for col in 0..Board::WIDTH {
+                let offset = (row * Board::WIDTH + col) as usize;
+
+                if self.0[offset].marked {
+                    fallers.push(offset);
+                }
+            }
+        }
+        true // They are all lowered
+    }
+}
+
+#[derive(Debug)]
+pub enum EngineState {
+    Falling,
+    Locking(Instant),
+    PatternFinding,
+    Animating(Instant),
+    EliminatingSpace,
+    Completing,
 }
 
 pub struct Engine {
     board: Board,
     bag: Vec<Kind>,
     rng: ThreadRng,
+    pub state: EngineState,
     pub cursor: Option<Piece>,
 }
 
@@ -56,6 +137,7 @@ impl Engine {
             board: Board::blank(),
             bag: Vec::new(),
             rng: thread_rng(),
+            state: EngineState::Falling,
             cursor: None,
         }
     }
@@ -96,26 +178,42 @@ impl Engine {
     }
 
     fn left_or_right(&mut self, direction: Direction) {
-        let c = self.cursor.as_mut().unwrap();
-        if c.can_move_lateral(&self.board, direction) {
-            c.lateral_move(direction)
+        if let Some(c) = self.cursor.as_mut() {
+            if c.can_move_lateral(&self.board, direction) {
+                c.lateral_move(direction)
+            }
         }
     }
 
     fn cw(&mut self) {
-        let c = self.cursor.as_mut().unwrap();
-        c.cw(&self.board);
+        if let Some(c) = self.cursor.as_mut() {
+            c.cw(&self.board);
+        }
     }
 
     fn ccw(&mut self) {
-        let c = self.cursor.as_mut().unwrap();
-        c.ccw(&self.board);
+        if let Some(c) = self.cursor.as_mut() {
+            c.ccw(&self.board);
+        }
     }
 
     pub fn get_pile(&self) -> Vec<Coordinate> {
         let mut cells: Vec<Coordinate> = vec![];
         for offset in 0..Board::SIZE {
-            if self.board.0[offset as usize] {
+            if self.board.0[offset as usize].filled & !self.board.0[offset as usize].marked {
+                cells.push(Coordinate {
+                    x: offset % Board::WIDTH,
+                    y: offset / Board::WIDTH,
+                })
+            }
+        }
+        cells
+    }
+
+    pub fn get_marked(&self) -> Vec<Coordinate> {
+        let mut cells: Vec<Coordinate> = vec![];
+        for offset in 0..Board::SIZE {
+            if self.board.0[offset as usize].filled & self.board.0[offset as usize].marked {
                 cells.push(Coordinate {
                     x: offset % Board::WIDTH,
                     y: offset / Board::WIDTH,
@@ -126,23 +224,64 @@ impl Engine {
     }
 
     pub fn tick(&mut self) -> Result<(), String> {
-        match &self.cursor {
-            None => return Result::Ok(()),
-            Some(c) => {
-                if c.can_lower(&self.board) {
-                    self.cursor = Some(c.lower());
-                    return Result::Ok(());
-                } else {
-                    self.board.add(c)?;
+        println!("State: {:?}", self.state);
+        match self.state {
+            EngineState::Falling => match &self.cursor {
+                None => {
                     self.place_cursor();
+                    if let Some(c) = &self.cursor {
+                        if !c.can_lower(&self.board) {
+                            return Result::Err("Cannot lower new cursor".to_string());
+                        }
+                    }
+                }
+                Some(c) => {
+                    if c.can_lower(&self.board) {
+                        self.cursor = Some(c.lower());
+                        return Result::Ok(());
+                    } else {
+                        self.state = EngineState::Locking(Instant::now());
+                        return Result::Ok(());
+                    }
+                }
+            },
+            EngineState::Locking(start) => {
+                if let Some(c) = &self.cursor {
+                    if c.can_lower(&self.board) {
+                        self.cursor = Some(c.lower());
+                        self.state = EngineState::Falling;
+                        return Result::Ok(());
+                    }
+                }
+                if (Instant::now() - start) > Duration::from_millis(500) {
+                    if let Some(c) = &self.cursor {
+                        self.board.add(c)?;
+                        self.cursor = None;
+                    }
+                    self.state = EngineState::PatternFinding;
                 }
             }
-        }
-        if let Some(c) = &self.cursor {
-            if !c.can_lower(&self.board) {
-                return Result::Err("Game Over".to_string());
+            EngineState::PatternFinding => match self.board.has_patterns() {
+                true => self.state = EngineState::Animating(Instant::now()),
+                false => self.state = EngineState::Falling,
+            },
+            EngineState::Animating(start) => {
+                if (Instant::now() - start) > Duration::from_millis(500) {
+                    if self.board.clear_marked() {
+                        self.state = EngineState::Falling;
+                    } else {
+                        self.state = EngineState::EliminatingSpace;
+                    }
+                }
             }
+            EngineState::EliminatingSpace => {
+                if self.board.lower_floaters() {
+                    self.state = EngineState::Falling;
+                }
+            }
+            EngineState::Completing => todo!(), // Score, level up, etc
         }
+
         Result::Ok(())
     }
 
@@ -161,7 +300,8 @@ impl Engine {
                 if let Err(_) = self.board.add(&p) {
                     return Err("Game Over".to_string());
                 }
-                self.place_cursor();
+                self.cursor = None;
+                self.state = EngineState::PatternFinding;
             }
         }
         Ok(())

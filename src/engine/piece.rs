@@ -194,6 +194,7 @@ impl Kind {
     }
 }
 
+#[derive(Debug)]
 pub struct Piece {
     pub kind: Kind,
     pub position: Coordinate,
