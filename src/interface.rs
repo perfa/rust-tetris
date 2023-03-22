@@ -110,7 +110,11 @@ impl Interface {
                 Keycode::Down => engine.try_move(Direction::CW),
                 Keycode::Left => engine.try_move(Direction::LEFT),
                 Keycode::Right => engine.try_move(Direction::RIGHT),
-                Keycode::Space => engine.drop(),
+                Keycode::Space => {
+                    if let Err(_) = engine.drop() {
+                        self.state = GameState::GameOver;
+                    }
+                }
                 Keycode::P => self.state = GameState::Paused,
                 _ => (),
             },
@@ -198,13 +202,21 @@ impl Interface {
                 GameState::Playing => {
                     let now = Instant::now();
                     if now - last_tick > Duration::from_millis(250) {
-                        engine.tick();
+                        match engine.tick() {
+                            Err(_) => self.state = GameState::GameOver,
+                            Ok(()) => (),
+                        }
                         last_tick = now;
                     }
                     matrix.draw(&mut canvas, &engine)
                 }
-                GameState::Paused => self.draw_title(">PAUSE<", &mut canvas, &mut font_title),
-                GameState::GameOver => todo!(),
+                GameState::Paused => {
+                    matrix.draw(&mut canvas, &engine);
+                    self.draw_title(">PAUSE<", &mut canvas, &mut font_title)
+                }
+                GameState::GameOver => {
+                    self.draw_title("GAME OVER. :(", &mut canvas, &mut font_title)
+                }
             }
 
             canvas.present();

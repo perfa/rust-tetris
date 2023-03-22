@@ -31,11 +31,15 @@ impl Board {
         self.0[offset as usize]
     }
 
-    fn add(&mut self, piece: &Piece) {
+    fn add(&mut self, piece: &Piece) -> Result<(), String> {
         for cell in piece.get_cells() {
-            let offset = (cell.y * Board::WIDTH + cell.x) as usize;
-            self.0[offset] = true
+            let offset = cell.y * Board::WIDTH + cell.x;
+            if offset < 0 {
+                return Err("Integer underflow".to_string());
+            }
+            self.0[offset as usize] = true
         }
+        Ok(())
     }
 }
 
@@ -121,21 +125,28 @@ impl Engine {
         cells
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> Result<(), String> {
         match &self.cursor {
-            None => (),
+            None => return Result::Ok(()),
             Some(c) => {
                 if c.can_lower(&self.board) {
                     self.cursor = Some(c.lower());
+                    return Result::Ok(());
                 } else {
-                    self.board.add(c);
+                    self.board.add(c)?;
                     self.place_cursor();
                 }
             }
         }
+        if let Some(c) = &self.cursor {
+            if !c.can_lower(&self.board) {
+                return Result::Err("Game Over".to_string());
+            }
+        }
+        Result::Ok(())
     }
 
-    pub fn drop(&mut self) {
+    pub fn drop(&mut self) -> Result<(), String> {
         match &self.cursor {
             None => (),
             Some(c) => {
@@ -147,9 +158,12 @@ impl Engine {
                 while p.can_lower(&self.board) {
                     p = p.lower();
                 }
-                self.board.add(&p);
+                if let Err(_) = self.board.add(&p) {
+                    return Err("Game Over".to_string());
+                }
                 self.place_cursor();
             }
         }
+        Ok(())
     }
 }
