@@ -62,6 +62,10 @@ impl Engine {
         self.bag.shuffle(&mut self.rng);
     }
 
+    pub fn clear_board(&mut self) {
+        self.board = Board::blank();
+    }
+
     pub fn next_piece(&mut self) -> Kind {
         if self.bag.is_empty() {
             self.fill_bag()
@@ -96,12 +100,12 @@ impl Engine {
 
     fn cw(&mut self) {
         let c = self.cursor.as_mut().unwrap();
-        c.cw();
+        c.cw(&self.board);
     }
 
     fn ccw(&mut self) {
         let c = self.cursor.as_mut().unwrap();
-        c.ccw();
+        c.ccw(&self.board);
     }
 
     pub fn get_pile(&self) -> Vec<Coordinate> {

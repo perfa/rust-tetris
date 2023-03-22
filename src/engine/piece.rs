@@ -223,21 +223,29 @@ impl Piece {
         };
     }
 
-    pub fn cw(&mut self) {
+    pub fn cw(&mut self, board: &Board) {
+        let current_rotation = self.rotation;
         match self.rotation {
             Rotation::N => self.rotation = Rotation::E,
             Rotation::E => self.rotation = Rotation::S,
             Rotation::S => self.rotation = Rotation::W,
             Rotation::W => self.rotation = Rotation::N,
         }
+        if !self.check_new_position(board, |cell| cell) {
+            self.rotation = current_rotation;
+        }
     }
 
-    pub fn ccw(&mut self) {
+    pub fn ccw(&mut self, board: &Board) {
+        let current_rotation = self.rotation;
         match self.rotation {
             Rotation::N => self.rotation = Rotation::W,
             Rotation::W => self.rotation = Rotation::S,
             Rotation::S => self.rotation = Rotation::E,
             Rotation::E => self.rotation = Rotation::N,
+        }
+        if !self.check_new_position(board, |cell| cell) {
+            self.rotation = current_rotation;
         }
     }
 

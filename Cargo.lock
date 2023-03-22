@@ -138,6 +138,7 @@ dependencies = [
  "lazy_static",
  "rand",
  "sdl2",
+ "sdl2-sys",
 ]
 
 [[package]]

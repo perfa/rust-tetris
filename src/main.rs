@@ -4,5 +4,6 @@ mod interface;
 
 fn main() {
     let mut engine = engine::Engine::new();
-    let _ = interface::Interface::run(&mut engine);
+    let mut if_ = interface::Interface::new();
+    if_.run(&mut engine);
 }
