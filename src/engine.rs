@@ -237,7 +237,7 @@ impl Engine {
     }
 
     pub fn tick(&mut self) -> Result<(), String> {
-        println!("State: {:?}", self.state);
+        // println!("State: {:?}", self.state);
         match self.state {
             EngineState::Falling => match &self.cursor {
                 None => {
@@ -283,7 +283,7 @@ impl Engine {
                 false => self.state = EngineState::Falling,
             },
             EngineState::Animating(start) => {
-                if (Instant::now() - start) > Duration::from_millis(500) {
+                if (Instant::now() - start) > Duration::from_millis(100) {
                     if self.board.clear_marked() {
                         self.state = EngineState::EliminatingSpace;
                     } else {
