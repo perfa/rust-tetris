@@ -8,7 +8,7 @@ use sdl2::rect::Rect;
 use sdl2::render::TextureQuery;
 use sdl2::ttf::Font;
 use sdl2::{event::Event, render::WindowCanvas};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 enum GameState {
     TitleScreen,
@@ -199,7 +199,6 @@ impl Interface {
         canvas.clear();
         canvas.present();
         let mut event_pump = sdl_context.event_pump().unwrap();
-        let mut last_tick = Instant::now();
         'running: loop {
             canvas.set_draw_color(Color::RGB(128, 128, 255));
             canvas.clear();
@@ -225,16 +224,12 @@ impl Interface {
             match self.state {
                 GameState::TitleScreen => self.draw_title("Tetris", &mut canvas, &mut font_title),
                 GameState::Playing => {
-                    let now = Instant::now();
-                    if now - last_tick > Duration::from_millis(250) {
-                        match engine.tick() {
-                            Err(e) => {
-                                println!("GAMEOVERTICK {:?}", e);
-                                self.state = GameState::GameOver
-                            }
-                            Ok(()) => (),
+                    match engine.tick() {
+                        Err(e) => {
+                            println!("GAMEOVERTICK {:?}", e);
+                            self.state = GameState::GameOver
                         }
-                        last_tick = now;
+                        Ok(()) => (),
                     }
                     matrix.draw(&mut canvas, &engine)
                 }

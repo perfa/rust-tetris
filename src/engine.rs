@@ -138,6 +138,7 @@ pub struct Engine {
     board: Board,
     bag: Vec<Kind>,
     rng: ThreadRng,
+    last_tick: Instant,
     pub state: EngineState,
     pub cursor: Option<Piece>,
 }
@@ -148,6 +149,7 @@ impl Engine {
             board: Board::blank(),
             bag: Vec::new(),
             rng: thread_rng(),
+            last_tick: Instant::now(),
             state: EngineState::Falling,
             cursor: None,
         }
@@ -163,7 +165,7 @@ impl Engine {
         self.board = Board::blank();
     }
 
-    pub fn next_piece(&mut self) -> Kind {
+    fn next_piece_from_bag(&mut self) -> Kind {
         if self.bag.is_empty() {
             self.fill_bag()
         }
@@ -172,7 +174,7 @@ impl Engine {
 
     pub fn place_cursor(&mut self) {
         self.cursor = Some(Piece {
-            kind: self.next_piece(),
+            kind: self.next_piece_from_bag(),
             // NB: We start OFF SCREEN!
             position: Vector2::new(Board::WIDTH as isize / 2, -2),
             rotation: Rotation::N,
@@ -247,12 +249,16 @@ impl Engine {
                     }
                 }
                 Some(c) => {
-                    if c.can_lower(&self.board) {
-                        self.cursor = Some(c.lower());
-                        return Result::Ok(());
-                    } else {
-                        self.state = EngineState::Locking(Instant::now());
-                        return Result::Ok(());
+                    let now = Instant::now();
+                    if now - self.last_tick > Duration::from_millis(250) {
+                        if c.can_lower(&self.board) {
+                            self.cursor = Some(c.lower());
+                            self.last_tick = now;
+                            return Result::Ok(());
+                        } else {
+                            self.state = EngineState::Locking(Instant::now());
+                            return Result::Ok(());
+                        }
                     }
                 }
             },
