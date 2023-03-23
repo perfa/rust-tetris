@@ -78,21 +78,28 @@ impl Board {
     }
 
     fn clear_marked(&mut self) -> bool {
-        let mut fallers = false;
-        let mut first_cleared_row_found = false;
-        for row in 0..Board::HEIGHT {
+        self.1.sort();
+        let mut moved_cell = false;
+        for cleared_row in &self.1 {
             for col in 0..Board::WIDTH {
-                let offset = (row * Board::WIDTH + col) as usize;
-                if !first_cleared_row_found & self.0[offset].filled & self.0[offset].marked {
-                    fallers = true;
-                }
-                if self.0[offset].marked {
-                    self.0[offset] = Cell::new();
-                    first_cleared_row_found = true;
+                let offset = (*cleared_row * Board::WIDTH + col) as usize;
+                self.0[offset] = Cell::new();
+            }
+            // Checking from above the empty row upwards, filling down is safe
+            for row in (0..*cleared_row).rev() {
+                for col in 0..Board::WIDTH {
+                    let offset = (row * Board::WIDTH + col) as usize;
+                    let offset_below = ((row + 1) * Board::WIDTH + col) as usize;
+                    if self.0[offset].filled {
+                        moved_cell = true;
+                        self.0[offset] = Cell::new();
+                        self.0[offset_below].filled = true;
+                    }
                 }
             }
         }
-        fallers
+        self.1.clear();
+        moved_cell
     }
 
     fn lower_floaters(&mut self) -> bool {
@@ -268,9 +275,9 @@ impl Engine {
             EngineState::Animating(start) => {
                 if (Instant::now() - start) > Duration::from_millis(500) {
                     if self.board.clear_marked() {
-                        self.state = EngineState::Falling;
-                    } else {
                         self.state = EngineState::EliminatingSpace;
+                    } else {
+                        self.state = EngineState::Falling;
                     }
                 }
             }
