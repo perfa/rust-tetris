@@ -79,26 +79,30 @@ impl Board {
 
     fn clear_marked(&mut self) -> bool {
         self.1.sort();
+        self.1.reverse();
         let mut moved_cell = false;
-        for cleared_row in &self.1 {
-            for col in 0..Board::WIDTH {
-                let offset = (*cleared_row * Board::WIDTH + col) as usize;
-                self.0[offset] = Cell::new();
-            }
-            // Checking from above the empty row upwards, filling down is safe
-            for row in (0..*cleared_row).rev() {
+
+        match self.1.pop() {
+            Some(cleared_row) => {
                 for col in 0..Board::WIDTH {
-                    let offset = (row * Board::WIDTH + col) as usize;
-                    let offset_below = ((row + 1) * Board::WIDTH + col) as usize;
-                    if self.0[offset].filled {
-                        moved_cell = true;
-                        self.0[offset] = Cell::new();
-                        self.0[offset_below].filled = true;
+                    let offset = (cleared_row * Board::WIDTH + col) as usize;
+                    self.0[offset] = Cell::new();
+                }
+                // Checking from above the empty row upwards, filling down is safe
+                for row in (0..cleared_row).rev() {
+                    for col in 0..Board::WIDTH {
+                        let offset = (row * Board::WIDTH + col) as usize;
+                        let offset_below = ((row + 1) * Board::WIDTH + col) as usize;
+                        if self.0[offset].filled {
+                            moved_cell = true;
+                            self.0[offset] = Cell::new();
+                            self.0[offset_below].filled = true;
+                        }
                     }
                 }
             }
+            None => return false,
         }
-        self.1.clear();
         moved_cell
     }
 
@@ -283,7 +287,7 @@ impl Engine {
             }
             EngineState::EliminatingSpace => {
                 if self.board.lower_floaters() {
-                    self.state = EngineState::Falling;
+                    self.state = EngineState::Animating(Instant::now());
                 }
             }
             EngineState::Completing => todo!(), // Score, level up, etc
