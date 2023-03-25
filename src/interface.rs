@@ -1,7 +1,7 @@
 extern crate sdl2;
 
-use crate::engine::piece::Direction;
-use crate::engine::{Board, Engine};
+use crate::engine::piece::{Direction, Piece, Rotation};
+use crate::engine::{Board, Coordinate, Engine};
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
@@ -158,6 +158,43 @@ impl Interface {
         }
     }
 
+    fn draw_queue(&self, canvas: &mut WindowCanvas, engine: &Engine) {
+        let start_position: Coordinate = Coordinate::new(310, 20);
+        for i in 0..7 {
+            let position: Coordinate =
+                start_position + Coordinate::new(0, (3 * Matrix::SQUARE_SIZE * i as i32) as isize);
+            let kind = engine.queue[i];
+            let piece = Piece {
+                kind,
+                position: Coordinate::new(0, 0),
+                rotation: Rotation::N,
+            };
+            for mino in piece.get_cells() {
+                if mino.y < 0 {
+                    continue;
+                }
+                canvas.set_draw_color(Color::RGB(150, 200, 150));
+                canvas
+                    .fill_rect(Rect::new(
+                        position.x as i32 + (2 + mino.x as i32 * Matrix::SQUARE_SIZE),
+                        position.y as i32 + (2 + mino.y as i32 * Matrix::SQUARE_SIZE),
+                        Matrix::SQUARE_SIZE as u32 - 4,
+                        Matrix::SQUARE_SIZE as u32 - 4,
+                    ))
+                    .unwrap();
+                canvas.set_draw_color(Color::RGB(200, 200, 200));
+                canvas
+                    .draw_rect(Rect::new(
+                        position.x as i32 + (mino.x as i32 * Matrix::SQUARE_SIZE),
+                        position.y as i32 + (mino.y as i32 * Matrix::SQUARE_SIZE),
+                        Matrix::SQUARE_SIZE as u32,
+                        Matrix::SQUARE_SIZE as u32,
+                    ))
+                    .unwrap();
+            }
+        }
+    }
+
     fn draw_title(&self, msg: &str, canvas: &mut WindowCanvas, font: &mut Font) {
         let texture_creator = canvas.texture_creator();
         // render a surface, and convert it to a texture bound to the canvas
@@ -186,7 +223,7 @@ impl Interface {
         let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string()).unwrap();
 
         let window = video_subsystem
-            .window("rust-sdl2 demo", 300, 600)
+            .window("Tetris", 430, 600)
             .position_centered()
             .build()
             .unwrap();
@@ -231,10 +268,12 @@ impl Interface {
                         }
                         Ok(()) => (),
                     }
-                    matrix.draw(&mut canvas, &engine)
+                    matrix.draw(&mut canvas, &engine);
+                    self.draw_queue(&mut canvas, &engine);
                 }
                 GameState::Paused => {
                     matrix.draw(&mut canvas, &engine);
+                    self.draw_queue(&mut canvas, &engine);
                     self.draw_title(">PAUSE<", &mut canvas, &mut font_title)
                 }
                 GameState::GameOver => {

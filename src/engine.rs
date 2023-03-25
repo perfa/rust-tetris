@@ -2,7 +2,10 @@ pub mod piece;
 
 use cgmath::Vector2;
 use rand::{prelude::SliceRandom, prelude::ThreadRng, thread_rng};
-use std::time::{Duration, Instant};
+use std::{
+    collections::VecDeque,
+    time::{Duration, Instant},
+};
 
 use self::piece::{Direction, Kind, Piece, Rotation};
 
@@ -140,6 +143,7 @@ pub struct Engine {
     rng: ThreadRng,
     last_tick: Instant,
     pub state: EngineState,
+    pub queue: VecDeque<Kind>,
     pub cursor: Option<Piece>,
 }
 
@@ -151,6 +155,7 @@ impl Engine {
             rng: thread_rng(),
             last_tick: Instant::now(),
             state: EngineState::Falling,
+            queue: VecDeque::with_capacity(7),
             cursor: None,
         }
     }
@@ -159,6 +164,23 @@ impl Engine {
         debug_assert!(self.bag.is_empty());
         self.bag.extend_from_slice(Kind::ALL.as_slice());
         self.bag.shuffle(&mut self.rng);
+    }
+
+    fn fill_queue(&mut self) {
+        for _ in 0..7 {
+            let kind = self.next_piece_from_bag();
+            self.queue.push_back(kind);
+        }
+    }
+
+    fn pull_from_queue(&mut self) -> Kind {
+        if self.queue.is_empty() {
+            self.fill_queue();
+        }
+        let kind = self.queue.pop_front().unwrap();
+        let new = self.next_piece_from_bag();
+        self.queue.push_back(new);
+        kind
     }
 
     pub fn clear_board(&mut self) {
@@ -174,9 +196,9 @@ impl Engine {
 
     pub fn place_cursor(&mut self) {
         self.cursor = Some(Piece {
-            kind: self.next_piece_from_bag(),
+            kind: self.pull_from_queue(),
             // NB: We start OFF SCREEN!
-            position: Vector2::new(Board::WIDTH as isize / 2, -2),
+            position: Vector2::new((Board::WIDTH as isize / 2) - 2, -2),
             rotation: Rotation::N,
         });
     }
