@@ -27,7 +27,7 @@ struct Matrix {
 impl Matrix {
     const SQUARE_SIZE: i32 = 28;
     pub fn new(width: i32, top_offset: i32) -> Self {
-        let x = (width - (10 * Matrix::SQUARE_SIZE)) / 2;
+        let x = (width - (10 * Matrix::SQUARE_SIZE)) / 2 + 150;
         Matrix {
             x: x,
             y: top_offset,
@@ -236,7 +236,7 @@ impl Interface {
     }
 
     fn draw_queue(&self, canvas: &mut WindowCanvas, engine: &Engine) {
-        let start_position: Coordinate = Coordinate::new(310, 20);
+        let start_position: Coordinate = Coordinate::new(460, 20);
         for i in 0..4 {
             let position: Coordinate =
                 start_position + Coordinate::new(0, (3 * Matrix::SQUARE_SIZE * i as i32) as isize);
@@ -272,7 +272,15 @@ impl Interface {
         }
     }
 
-    fn draw_title(&self, msg: &str, canvas: &mut WindowCanvas, font: &mut Font) {
+    fn draw_text(
+        &self,
+        msg: &str,
+        canvas: &mut WindowCanvas,
+        font: &mut Font,
+        x: u32,
+        y: u32,
+        centered: bool,
+    ) {
         let texture_creator = canvas.texture_creator();
         // render a surface, and convert it to a texture bound to the canvas
         let surface = font
@@ -286,10 +294,72 @@ impl Interface {
             .unwrap();
         let TextureQuery { width, height, .. } = texture.query();
 
+        let x_pos;
+        let y_pos;
+        if centered {
+            let (canvas_width, canvas_height) = canvas
+                .output_size()
+                .map_err(|e| println!("{:?}", e))
+                .unwrap();
+            x_pos = if width > canvas_width {
+                0
+            } else {
+                (canvas_width - width) / 2
+            };
+            y_pos = if height > canvas_height {
+                0
+            } else {
+                (canvas_height - height) / 2
+            };
+        } else {
+            x_pos = x;
+            y_pos = y;
+        }
         canvas
-            .copy(&texture, None, Some(Rect::new(20, 200, width, height)))
+            .copy(
+                &texture,
+                None,
+                Some(Rect::new(x_pos as i32, y_pos as i32, width, height)),
+            )
             .map_err(|err| println!("{:?}", err))
             .unwrap();
+    }
+
+    fn draw_title(&self, msg: &str, canvas: &mut WindowCanvas, font: &mut Font) {
+        self.draw_text(msg, canvas, font, 20, 200, true)
+    }
+
+    fn draw_stats(&self, canvas: &mut WindowCanvas, engine: &Engine, font: &mut Font) {
+        let spacing: u32 = font.height() as u32;
+        self.draw_text(&"Level", canvas, font, 10, 20, false);
+        self.draw_text(
+            format!("{}", engine.level).as_str(),
+            canvas,
+            font,
+            10,
+            20 + spacing,
+            false,
+        );
+
+        self.draw_text(&"Score", canvas, font, 10, 20 + (spacing * 3), false);
+        self.draw_text(
+            format!("{}", engine.points).as_str(),
+            canvas,
+            font,
+            10,
+            20 + (spacing * 4),
+            false,
+        );
+
+        self.draw_text(&"Cleared", canvas, font, 10, 20 + (spacing * 6), false);
+        self.draw_text(
+            format!("{}", engine.rows_cleared).as_str(),
+            canvas,
+            font,
+            10,
+            20 + (spacing * 7),
+            false,
+        );
     }
 
     pub fn run(&mut self, engine: &mut Engine) {
@@ -300,7 +370,7 @@ impl Interface {
         let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string()).unwrap();
 
         let window = video_subsystem
-            .window("Tetris", 430, 600)
+            .window("Tetris", 580, 600)
             .position_centered()
             .build()
             .unwrap();
@@ -308,6 +378,7 @@ impl Interface {
         let mut canvas = window.into_canvas().build().unwrap();
 
         let mut font_title = ttf_context.load_font("./PixeloidMono.ttf", 45).unwrap();
+        let mut font_stats = ttf_context.load_font("./PixeloidMono.ttf", 12).unwrap();
 
         canvas.set_draw_color(Color::RGB(0, 255, 255));
         canvas.clear();
@@ -343,10 +414,12 @@ impl Interface {
                         Ok(()) => (),
                     }
                     matrix.draw(&mut canvas, &engine);
+                    self.draw_stats(&mut canvas, &engine, &mut font_stats);
                     self.draw_queue(&mut canvas, &engine);
                 }
                 GameState::Paused => {
                     matrix.draw(&mut canvas, &engine);
+                    self.draw_stats(&mut canvas, &engine, &mut font_stats);
                     self.draw_queue(&mut canvas, &engine);
                     self.draw_title(">PAUSE<", &mut canvas, &mut font_title)
                 }

@@ -126,6 +126,8 @@ pub struct Engine {
     rng: ThreadRng,
     last_tick: Instant,
     pub level: usize,
+    pub rows_cleared: usize,
+    pub points: usize,
     pub state: EngineState,
     pub queue: VecDeque<Kind>,
     pub cursor: Option<Piece>,
@@ -140,7 +142,9 @@ impl Engine {
             board: Board::blank(),
             bag: Vec::new(),
             rng: thread_rng(),
-            level: 6,
+            level: 4,
+            rows_cleared: 0,
+            points: 0,
             last_tick: Instant::now(),
             state: EngineState::Falling,
             queue: VecDeque::with_capacity(7),
@@ -296,6 +300,10 @@ impl Engine {
             EngineState::Animating(start) => {
                 if (Instant::now() - start) > Duration::from_millis(100) {
                     if self.board.clear_marked() {
+                        self.rows_cleared += 1;
+                        if self.rows_cleared >= (self.level * 10) {
+                            self.level += 1;
+                        }
                         self.state = EngineState::EliminatingSpace;
                     } else {
                         self.state = EngineState::Falling;
