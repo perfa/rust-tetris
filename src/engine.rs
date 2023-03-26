@@ -61,7 +61,7 @@ impl Board {
         Ok(())
     }
 
-    fn has_patterns(&mut self) -> bool {
+    fn has_patterns(&mut self, points: &mut usize, level: &mut usize) -> bool {
         let mut found = false;
         for row in 0..Board::HEIGHT {
             let mut cells: Vec<usize> = vec![];
@@ -76,6 +76,13 @@ impl Board {
                 cells.into_iter().for_each(|c| self.0[c].marked = true);
                 self.1.push(row);
             }
+        }
+        match self.1.len() {
+            1 => *points += 100 * *level,
+            2 => *points += 300 * *level,
+            3 => *points += 500 * *level,
+            4 => *points += 800 * *level,
+            _ => (), // Can't happen
         }
         found
     }
@@ -293,10 +300,12 @@ impl Engine {
                     self.state = EngineState::PatternFinding;
                 }
             }
-            EngineState::PatternFinding => match self.board.has_patterns() {
-                true => self.state = EngineState::Animating(Instant::now()),
-                false => self.state = EngineState::Falling,
-            },
+            EngineState::PatternFinding => {
+                match self.board.has_patterns(&mut self.points, &mut self.level) {
+                    true => self.state = EngineState::Animating(Instant::now()),
+                    false => self.state = EngineState::Falling,
+                }
+            }
             EngineState::Animating(start) => {
                 if (Instant::now() - start) > Duration::from_millis(100) {
                     if self.board.clear_marked() {
@@ -330,9 +339,12 @@ impl Engine {
                     position: c.position.clone(),
                     rotation: c.rotation.clone(),
                 };
+                let mut points = 0;
                 while p.can_lower(&self.board) {
+                    points += 1;
                     p = p.lower();
                 }
+                self.points += points;
                 if let Err(_) = self.board.add(&p) {
                     return Err("Game Over".to_string());
                 }
