@@ -2,12 +2,14 @@ extern crate sdl2;
 
 use crate::engine::piece::{Direction, Piece, Rotation};
 use crate::engine::{Board, Coordinate, Engine};
-use sdl2::keyboard::Keycode;
+use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::TextureQuery;
 use sdl2::ttf::Font;
+use sdl2::EventPump;
 use sdl2::{event::Event, render::WindowCanvas};
+use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 enum GameState {
@@ -113,48 +115,123 @@ impl Matrix {
             .unwrap();
     }
 }
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+enum AutoRepeat {
+    NoPress,
+    Pressed(Scancode, Instant),
+    Repeating(Scancode, Instant),
+}
+
 pub struct Interface {
     state: GameState,
+    pressed_keys: HashSet<Scancode>,
+    auto_repeat: AutoRepeat,
 }
 
 impl Interface {
     pub fn new() -> Self {
         Interface {
             state: GameState::TitleScreen,
+            pressed_keys: HashSet::new(),
+            auto_repeat: AutoRepeat::NoPress,
         }
     }
 
-    fn handle_input(&mut self, engine: &mut Engine, keycode: Keycode) {
+    fn get_scancodes(old: &HashSet<Scancode>, new: &HashSet<Scancode>) -> HashSet<Scancode> {
+        new - old
+    }
+
+    fn handle_input(&mut self, engine: &mut Engine, event_pump: &mut EventPump) {
+        let scancodes: HashSet<Scancode> =
+            event_pump.keyboard_state().pressed_scancodes().collect();
+        let newly_pressed: HashSet<Scancode> =
+            Interface::get_scancodes(&self.pressed_keys, &scancodes);
+        self.pressed_keys = scancodes;
+
         match self.state {
-            GameState::TitleScreen => match keycode {
-                Keycode::Space => self.state = GameState::Playing,
-                _ => (),
-            },
-            GameState::Playing => match keycode {
-                Keycode::Up => engine.try_move(Direction::CCW),
-                Keycode::Down => engine.try_move(Direction::CW),
-                Keycode::Left => engine.try_move(Direction::LEFT),
-                Keycode::Right => engine.try_move(Direction::RIGHT),
-                Keycode::Space => {
+            GameState::TitleScreen => {
+                if newly_pressed.contains(&Scancode::Space) {
+                    self.state = GameState::Playing
+                }
+            }
+            GameState::Playing => {
+                if newly_pressed.contains(&Scancode::P) {
+                    self.state = GameState::Paused;
+                }
+                if newly_pressed.contains(&Scancode::Up) {
+                    engine.try_move(Direction::CCW);
+                }
+                if newly_pressed.contains(&Scancode::Down) {
+                    // TODO: Make soft-drop, shift to right ctrl/cmd
+                    engine.try_move(Direction::CW);
+                }
+                if newly_pressed.contains(&Scancode::Space) {
                     if let Err(_) = engine.drop() {
                         self.state = GameState::GameOver;
                     }
                 }
-                Keycode::P => self.state = GameState::Paused,
-                _ => (),
-            },
-            GameState::Paused => match keycode {
-                Keycode::P => self.state = GameState::Playing,
-                _ => (),
-            },
-            GameState::GameOver => match keycode {
-                Keycode::Space => {
+                // NB: XOR!
+                if newly_pressed.contains(&Scancode::Left)
+                    || newly_pressed.contains(&Scancode::Right)
+                {
+                    let direction;
+                    if newly_pressed.contains(&Scancode::Left) {
+                        direction = Direction::LEFT;
+                        self.auto_repeat = AutoRepeat::Pressed(Scancode::Left, Instant::now());
+                    } else {
+                        direction = Direction::RIGHT;
+                        self.auto_repeat = AutoRepeat::Pressed(Scancode::Right, Instant::now());
+                    }
+
+                    engine.try_move(direction)
+                }
+
+                let scancodes: HashSet<Scancode> =
+                    event_pump.keyboard_state().pressed_scancodes().collect();
+                let direction;
+                if scancodes.contains(&Scancode::Left) {
+                    direction = Direction::LEFT;
+                } else {
+                    direction = Direction::RIGHT;
+                }
+                match self.auto_repeat {
+                    AutoRepeat::NoPress => (),
+                    AutoRepeat::Pressed(scancode, start) => {
+                        if !scancodes.contains(&scancode) {
+                            self.auto_repeat = AutoRepeat::NoPress;
+                            return;
+                        }
+                        let duration = Instant::now() - start;
+                        if duration >= Duration::from_millis(300) {
+                            self.auto_repeat = AutoRepeat::Repeating(scancode, Instant::now());
+                            engine.try_move(direction);
+                        }
+                    }
+                    AutoRepeat::Repeating(scancode, start) => {
+                        if !scancodes.contains(&scancode) {
+                            self.auto_repeat = AutoRepeat::NoPress;
+                            return;
+                        }
+                        let duration = Instant::now() - start;
+                        if duration >= Duration::from_millis(28) {
+                            engine.try_move(direction);
+                        }
+                    }
+                }
+            }
+            GameState::Paused => {
+                if newly_pressed.contains(&Scancode::P) {
+                    self.state = GameState::Playing;
+                }
+            }
+            GameState::GameOver => {
+                if newly_pressed.contains(&Scancode::Space) {
                     engine.clear_board();
                     engine.place_cursor();
                     self.state = GameState::Playing
                 }
-                _ => (),
-            },
+            }
         }
     }
 
@@ -251,13 +328,10 @@ impl Interface {
                         keycode: Some(Keycode::Q),
                         ..
                     } => break 'running,
-                    Event::KeyDown {
-                        keycode: Some(keycode),
-                        ..
-                    } => self.handle_input(engine, keycode),
                     _ => {}
                 }
             }
+            self.handle_input(engine, &mut event_pump);
             match self.state {
                 GameState::TitleScreen => self.draw_title("Tetris", &mut canvas, &mut font_title),
                 GameState::Playing => {
