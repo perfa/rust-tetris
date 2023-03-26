@@ -108,23 +108,6 @@ impl Board {
         }
         moved_cell
     }
-
-    fn lower_floaters(&mut self) -> bool {
-        let mut fallers: Vec<usize> = vec![];
-
-        //We have the rows that are cleared in self.1
-
-        for row in 0..Board::HEIGHT {
-            for col in 0..Board::WIDTH {
-                let offset = (row * Board::WIDTH + col) as usize;
-
-                if self.0[offset].marked {
-                    fallers.push(offset);
-                }
-            }
-        }
-        true // They are all lowered
-    }
 }
 
 #[derive(Debug)]
@@ -314,9 +297,9 @@ impl Engine {
                 }
             }
             EngineState::EliminatingSpace => {
-                if self.board.lower_floaters() {
-                    self.state = EngineState::Animating(Instant::now());
-                }
+                // Reset animation timer, "eliminating space" is in
+                // the drawing code more concretely speaking.
+                self.state = EngineState::Animating(Instant::now());
             }
             EngineState::Completing => todo!(), // Score, level up, etc
         }

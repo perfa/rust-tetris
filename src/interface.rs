@@ -160,7 +160,7 @@ impl Interface {
 
     fn draw_queue(&self, canvas: &mut WindowCanvas, engine: &Engine) {
         let start_position: Coordinate = Coordinate::new(310, 20);
-        for i in 0..7 {
+        for i in 0..4 {
             let position: Coordinate =
                 start_position + Coordinate::new(0, (3 * Matrix::SQUARE_SIZE * i as i32) as isize);
             let kind = engine.queue[i];
