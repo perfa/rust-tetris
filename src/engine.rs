@@ -125,17 +125,22 @@ pub struct Engine {
     bag: Vec<Kind>,
     rng: ThreadRng,
     last_tick: Instant,
+    pub level: usize,
     pub state: EngineState,
     pub queue: VecDeque<Kind>,
     pub cursor: Option<Piece>,
 }
 
 impl Engine {
+    const LEVEL_TPR_IN_MS: [u64; 15] = [
+        1000, 793, 618, 473, 355, 262, 190, 135, 94, 64, 43, 28, 18, 11, 7,
+    ];
     pub fn new() -> Self {
         Engine {
             board: Board::blank(),
             bag: Vec::new(),
             rng: thread_rng(),
+            level: 6,
             last_tick: Instant::now(),
             state: EngineState::Falling,
             queue: VecDeque::with_capacity(7),
@@ -255,7 +260,8 @@ impl Engine {
                 }
                 Some(c) => {
                     let now = Instant::now();
-                    if now - self.last_tick > Duration::from_millis(250) {
+                    let level_tick_duration = Self::LEVEL_TPR_IN_MS[self.level - 1];
+                    if now - self.last_tick > Duration::from_millis(level_tick_duration) {
                         if c.can_lower(&self.board) {
                             self.cursor = Some(c.lower());
                             self.last_tick = now;
