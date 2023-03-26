@@ -8,7 +8,7 @@ use sdl2::rect::Rect;
 use sdl2::render::TextureQuery;
 use sdl2::ttf::Font;
 use sdl2::{event::Event, render::WindowCanvas};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 enum GameState {
     TitleScreen,
@@ -237,6 +237,7 @@ impl Interface {
         canvas.present();
         let mut event_pump = sdl_context.event_pump().unwrap();
         'running: loop {
+            let loop_start = Instant::now();
             canvas.set_draw_color(Color::RGB(128, 128, 255));
             canvas.clear();
             for event in event_pump.poll_iter() {
@@ -257,7 +258,6 @@ impl Interface {
                     _ => {}
                 }
             }
-            // The rest of the game loop goes here...
             match self.state {
                 GameState::TitleScreen => self.draw_title("Tetris", &mut canvas, &mut font_title),
                 GameState::Playing => {
@@ -282,7 +282,12 @@ impl Interface {
             }
 
             canvas.present();
-            ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+            let cycle_time = Instant::now() - loop_start;
+            let one_sixieth_second = Duration::new(0, 1_000_000_000u32 / 60);
+            if one_sixieth_second > cycle_time {
+                let remaining = one_sixieth_second - cycle_time;
+                ::std::thread::sleep(remaining);
+            }
         }
     }
 }
