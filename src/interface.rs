@@ -35,29 +35,44 @@ impl Matrix {
     }
 
     pub fn draw(&self, canvas: &mut WindowCanvas, engine: &Engine) {
+        canvas.set_draw_color(Color::RGB(187, 183, 190));
+        canvas
+            .fill_rect(Rect::new(
+                self.x,
+                self.y,
+                (Board::WIDTH as i32 * Matrix::SQUARE_SIZE) as u32,
+                ((Board::HEIGHT as i32 * Matrix::SQUARE_SIZE) + (Matrix::SQUARE_SIZE / 3)) as u32,
+            ))
+            .unwrap();
         if let Some(cursor) = engine.cursor.as_ref() {
             let minos = cursor.get_cells();
             for mino in &minos {
-                if mino.y < 0 {
+                if mino.y < -1 {
                     continue;
                 }
+
+                let height;
+                let x = self.x + (mino.x as i32) * Matrix::SQUARE_SIZE;
+                let y;
+                if mino.y == -1 {
+                    y = self.y;
+                    height = Matrix::SQUARE_SIZE as u32 / 3;
+                } else {
+                    y = self.y + (mino.y as i32) * Matrix::SQUARE_SIZE + Matrix::SQUARE_SIZE / 3;
+                    height = Matrix::SQUARE_SIZE as u32;
+                };
                 canvas.set_draw_color(Color::RGB(150, 200, 150));
                 canvas
                     .fill_rect(Rect::new(
-                        2 + self.x + (mino.x as i32) * Matrix::SQUARE_SIZE,
-                        2 + self.y + (mino.y as i32) * Matrix::SQUARE_SIZE,
+                        x + 2,
+                        y + 2,
                         Matrix::SQUARE_SIZE as u32 - 4,
-                        Matrix::SQUARE_SIZE as u32 - 4,
+                        height - 4,
                     ))
                     .unwrap();
-                canvas.set_draw_color(Color::RGB(200, 200, 200));
+                canvas.set_draw_color(Color::RGB(20, 20, 20));
                 canvas
-                    .draw_rect(Rect::new(
-                        self.x + (mino.x as i32) * Matrix::SQUARE_SIZE,
-                        self.y + (mino.y as i32) * Matrix::SQUARE_SIZE,
-                        Matrix::SQUARE_SIZE as u32,
-                        Matrix::SQUARE_SIZE as u32,
-                    ))
+                    .draw_rect(Rect::new(x, y, Matrix::SQUARE_SIZE as u32, height))
                     .unwrap();
             }
         }
@@ -67,7 +82,7 @@ impl Matrix {
             canvas
                 .fill_rect(Rect::new(
                     2 + self.x + (cell.x as i32) * Matrix::SQUARE_SIZE,
-                    2 + self.y + (cell.y as i32) * Matrix::SQUARE_SIZE,
+                    2 + self.y + (cell.y as i32) * Matrix::SQUARE_SIZE + Matrix::SQUARE_SIZE / 3,
                     Matrix::SQUARE_SIZE as u32 - 4,
                     Matrix::SQUARE_SIZE as u32 - 4,
                 ))
@@ -76,7 +91,7 @@ impl Matrix {
             canvas
                 .draw_rect(Rect::new(
                     self.x + (cell.x as i32) * Matrix::SQUARE_SIZE,
-                    self.y + (cell.y as i32) * Matrix::SQUARE_SIZE,
+                    self.y + (cell.y as i32) * Matrix::SQUARE_SIZE + Matrix::SQUARE_SIZE / 3,
                     Matrix::SQUARE_SIZE as u32,
                     Matrix::SQUARE_SIZE as u32,
                 ))
@@ -88,7 +103,7 @@ impl Matrix {
             canvas
                 .fill_rect(Rect::new(
                     2 + self.x + (cell.x as i32) * Matrix::SQUARE_SIZE,
-                    2 + self.y + (cell.y as i32) * Matrix::SQUARE_SIZE,
+                    2 + self.y + (cell.y as i32) * Matrix::SQUARE_SIZE + Matrix::SQUARE_SIZE / 3,
                     Matrix::SQUARE_SIZE as u32 - 4,
                     Matrix::SQUARE_SIZE as u32 - 4,
                 ))
@@ -97,7 +112,7 @@ impl Matrix {
             canvas
                 .draw_rect(Rect::new(
                     self.x + (cell.x as i32) * Matrix::SQUARE_SIZE,
-                    self.y + (cell.y as i32) * Matrix::SQUARE_SIZE,
+                    self.y + (cell.y as i32) * Matrix::SQUARE_SIZE + Matrix::SQUARE_SIZE / 3,
                     Matrix::SQUARE_SIZE as u32,
                     Matrix::SQUARE_SIZE as u32,
                 ))
@@ -110,7 +125,7 @@ impl Matrix {
                 self.x,
                 self.y,
                 (Board::WIDTH as i32 * Matrix::SQUARE_SIZE) as u32,
-                (Board::HEIGHT as i32 * Matrix::SQUARE_SIZE) as u32,
+                ((Board::HEIGHT as i32 * Matrix::SQUARE_SIZE) + (Matrix::SQUARE_SIZE / 3)) as u32,
             ))
             .unwrap();
     }
@@ -277,6 +292,7 @@ impl Interface {
         msg: &str,
         canvas: &mut WindowCanvas,
         font: &mut Font,
+        color: Color,
         x: u32,
         y: u32,
         centered: bool,
@@ -285,7 +301,7 @@ impl Interface {
         // render a surface, and convert it to a texture bound to the canvas
         let surface = font
             .render(msg)
-            .blended(Color::RGBA(255, 0, 0, 255))
+            .blended(color)
             .map_err(|e| e.to_string())
             .unwrap();
         let texture = texture_creator
@@ -326,36 +342,55 @@ impl Interface {
     }
 
     fn draw_title(&self, msg: &str, canvas: &mut WindowCanvas, font: &mut Font) {
-        self.draw_text(msg, canvas, font, 20, 200, true)
+        self.draw_text(msg, canvas, font, Color::RED, 20, 200, true)
     }
 
     fn draw_stats(&self, canvas: &mut WindowCanvas, engine: &Engine, font: &mut Font) {
         let spacing: u32 = font.height() as u32;
-        self.draw_text(&"Level", canvas, font, 10, 20, false);
+        self.draw_text(&"Level", canvas, font, Color::BLACK, 10, 20, false);
         self.draw_text(
             format!("{}", engine.level).as_str(),
             canvas,
             font,
+            Color::RED,
             10,
             20 + spacing,
             false,
         );
 
-        self.draw_text(&"Score", canvas, font, 10, 20 + (spacing * 3), false);
+        self.draw_text(
+            &"Score",
+            canvas,
+            font,
+            Color::BLACK,
+            10,
+            20 + (spacing * 3),
+            false,
+        );
         self.draw_text(
             format!("{}", engine.points).as_str(),
             canvas,
             font,
+            Color::RED,
             10,
             20 + (spacing * 4),
             false,
         );
 
-        self.draw_text(&"Cleared", canvas, font, 10, 20 + (spacing * 6), false);
+        self.draw_text(
+            &"Cleared",
+            canvas,
+            font,
+            Color::BLACK,
+            10,
+            20 + (spacing * 6),
+            false,
+        );
         self.draw_text(
             format!("{}", engine.rows_cleared).as_str(),
             canvas,
             font,
+            Color::RED,
             10,
             20 + (spacing * 7),
             false,
