@@ -152,6 +152,7 @@ pub struct Interface {
     state: GameState,
     pressed_keys: HashSet<Scancode>,
     auto_repeat: AutoRepeat,
+    soft_drop: bool,
 }
 
 impl Interface {
@@ -160,6 +161,7 @@ impl Interface {
             state: GameState::TitleScreen,
             pressed_keys: HashSet::new(),
             auto_repeat: AutoRepeat::NoPress,
+            soft_drop: false,
         }
     }
 
@@ -170,6 +172,9 @@ impl Interface {
     fn handle_input(&mut self, engine: &mut Engine, event_pump: &mut EventPump) {
         let scancodes: HashSet<Scancode> =
             event_pump.keyboard_state().pressed_scancodes().collect();
+
+        self.soft_drop = scancodes.contains(&Scancode::Down);
+
         let newly_pressed: HashSet<Scancode> =
             Interface::get_scancodes(&self.pressed_keys, &scancodes);
         self.pressed_keys = scancodes;
@@ -187,7 +192,7 @@ impl Interface {
                 if newly_pressed.contains(&Scancode::Up) {
                     engine.try_move(Direction::CCW);
                 }
-                if newly_pressed.contains(&Scancode::Down) {
+                if newly_pressed.contains(&Scancode::RCtrl) {
                     // TODO: Make soft-drop, shift to right ctrl/cmd
                     engine.try_move(Direction::CW);
                 }
@@ -214,6 +219,7 @@ impl Interface {
 
                 let scancodes: HashSet<Scancode> =
                     event_pump.keyboard_state().pressed_scancodes().collect();
+
                 let direction;
                 if scancodes.contains(&Scancode::Left) {
                     direction = Direction::LEFT;
@@ -472,7 +478,7 @@ impl Interface {
             match self.state {
                 GameState::TitleScreen => self.draw_title("Tetris", &mut canvas, &mut font_title),
                 GameState::Playing => {
-                    match engine.tick() {
+                    match engine.tick(self.soft_drop) {
                         Err(e) => {
                             println!("GAMEOVERTICK {:?}", e);
                             self.state = GameState::GameOver

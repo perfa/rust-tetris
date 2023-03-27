@@ -132,6 +132,7 @@ pub struct Engine {
     bag: Vec<Kind>,
     rng: ThreadRng,
     last_tick: Instant,
+    soft_dropping: bool,
     pub level: usize,
     pub rows_cleared: usize,
     pub points: usize,
@@ -152,6 +153,7 @@ impl Engine {
             level: 4,
             rows_cleared: 0,
             points: 0,
+            soft_dropping: false,
             last_tick: Instant::now(),
             state: EngineState::Falling,
             queue: VecDeque::with_capacity(7),
@@ -186,6 +188,7 @@ impl Engine {
         self.points = 0;
         self.rows_cleared = 0;
         self.level = 1;
+        self.soft_dropping = false;
         self.board = Board::blank();
     }
 
@@ -260,8 +263,10 @@ impl Engine {
         cells
     }
 
-    pub fn tick(&mut self) -> Result<(), String> {
+    pub fn tick(&mut self, soft_drop: bool) -> Result<(), String> {
         // println!("State: {:?}", self.state);
+        // TODO: Check true->false transition for scoring
+        self.soft_dropping = soft_drop;
         match self.state {
             EngineState::Falling => match &self.cursor {
                 None => {
@@ -274,7 +279,9 @@ impl Engine {
                 }
                 Some(c) => {
                     let now = Instant::now();
-                    let level_tick_duration = Self::LEVEL_TPR_IN_MS[self.level - 1];
+                    let duration_divisor = if soft_drop { 20 } else { 1 };
+                    let level_tick_duration =
+                        Self::LEVEL_TPR_IN_MS[self.level - 1] / duration_divisor;
                     if now - self.last_tick > Duration::from_millis(level_tick_duration) {
                         if c.can_lower(&self.board) {
                             self.cursor = Some(c.lower());
