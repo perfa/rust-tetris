@@ -19,6 +19,17 @@ enum GameState {
     GameOver,
 }
 
+#[non_exhaustive]
+struct Colors;
+
+impl Colors {
+    pub const BG: Color = Color::RGB(128, 128, 255);
+    pub const LIVE_AREA: Color = Color::RGB(187, 183, 190);
+    pub const LIVE_CELL: Color = Color::RGB(150, 200, 150);
+    pub const LOCKED_CELL: Color = Color::RGB(100, 150, 100);
+    pub const MARKED_CELL: Color = Color::RGB(255, 100, 100);
+}
+
 struct Matrix {
     x: i32,
     y: i32,
@@ -26,16 +37,15 @@ struct Matrix {
 
 impl Matrix {
     const SQUARE_SIZE: i32 = 28;
-    pub fn new(width: i32, top_offset: i32) -> Self {
-        let x = (width - (10 * Matrix::SQUARE_SIZE)) / 2 + 150;
+    pub fn new(left_offset: i32, top_offset: i32) -> Self {
         Matrix {
-            x: x,
+            x: left_offset,
             y: top_offset,
         }
     }
 
     pub fn draw(&self, canvas: &mut WindowCanvas, engine: &Engine) {
-        canvas.set_draw_color(Color::RGB(187, 183, 190));
+        canvas.set_draw_color(Colors::LIVE_AREA);
         canvas
             .fill_rect(Rect::new(
                 self.x,
@@ -61,7 +71,7 @@ impl Matrix {
                     y = self.y + (mino.y as i32) * Matrix::SQUARE_SIZE + Matrix::SQUARE_SIZE / 3;
                     height = Matrix::SQUARE_SIZE as u32;
                 };
-                canvas.set_draw_color(Color::RGB(150, 200, 150));
+                canvas.set_draw_color(Colors::LIVE_CELL);
                 canvas
                     .fill_rect(Rect::new(
                         x + 2,
@@ -78,7 +88,7 @@ impl Matrix {
         }
 
         for cell in engine.get_pile() {
-            canvas.set_draw_color(Color::RGB(100, 150, 100));
+            canvas.set_draw_color(Colors::LOCKED_CELL);
             canvas
                 .fill_rect(Rect::new(
                     2 + self.x + (cell.x as i32) * Matrix::SQUARE_SIZE,
@@ -87,7 +97,7 @@ impl Matrix {
                     Matrix::SQUARE_SIZE as u32 - 4,
                 ))
                 .unwrap();
-            canvas.set_draw_color(Color::RGB(0, 0, 0));
+            canvas.set_draw_color(Color::BLACK);
             canvas
                 .draw_rect(Rect::new(
                     self.x + (cell.x as i32) * Matrix::SQUARE_SIZE,
@@ -108,7 +118,7 @@ impl Matrix {
                     Matrix::SQUARE_SIZE as u32 - 4,
                 ))
                 .unwrap();
-            canvas.set_draw_color(Color::RGB(255, 100, 100));
+            canvas.set_draw_color(Colors::MARKED_CELL);
             canvas
                 .draw_rect(Rect::new(
                     self.x + (cell.x as i32) * Matrix::SQUARE_SIZE,
@@ -119,7 +129,7 @@ impl Matrix {
                 .unwrap();
         }
 
-        canvas.set_draw_color(Color::RGB(0, 0, 0));
+        canvas.set_draw_color(Color::BLACK);
         canvas
             .draw_rect(Rect::new(
                 self.x,
@@ -251,8 +261,29 @@ impl Interface {
     }
 
     fn draw_queue(&self, canvas: &mut WindowCanvas, engine: &Engine) {
-        let start_position: Coordinate = Coordinate::new(460, 20);
-        for i in 0..4 {
+        let shown_items: usize = 4;
+        canvas.set_draw_color(Colors::LIVE_AREA);
+        canvas
+            .fill_rect(Rect::new(
+                460 - Matrix::SQUARE_SIZE,
+                20,
+                (5 * Matrix::SQUARE_SIZE) as u32,
+                (shown_items * 3 * Matrix::SQUARE_SIZE as usize) as u32,
+            ))
+            .unwrap();
+
+        canvas.set_draw_color(Color::BLACK);
+        canvas
+            .draw_rect(Rect::new(
+                460 - Matrix::SQUARE_SIZE,
+                20,
+                (5 * Matrix::SQUARE_SIZE) as u32,
+                (shown_items * 3 * Matrix::SQUARE_SIZE as usize) as u32,
+            ))
+            .unwrap();
+
+        let start_position: Coordinate = Coordinate::new(460, 30);
+        for i in 0..shown_items {
             let position: Coordinate =
                 start_position + Coordinate::new(0, (3 * Matrix::SQUARE_SIZE * i as i32) as isize);
             let kind = engine.queue[i];
@@ -265,7 +296,7 @@ impl Interface {
                 if mino.y < 0 {
                     continue;
                 }
-                canvas.set_draw_color(Color::RGB(150, 200, 150));
+                canvas.set_draw_color(Colors::LIVE_CELL);
                 canvas
                     .fill_rect(Rect::new(
                         position.x as i32 + (2 + mino.x as i32 * Matrix::SQUARE_SIZE),
@@ -274,7 +305,7 @@ impl Interface {
                         Matrix::SQUARE_SIZE as u32 - 4,
                     ))
                     .unwrap();
-                canvas.set_draw_color(Color::RGB(200, 200, 200));
+                canvas.set_draw_color(Color::BLACK);
                 canvas
                     .draw_rect(Rect::new(
                         position.x as i32 + (mino.x as i32 * Matrix::SQUARE_SIZE),
@@ -399,7 +430,7 @@ impl Interface {
 
     pub fn run(&mut self, engine: &mut Engine) {
         engine.place_cursor();
-        let matrix = Matrix::new(300, 20);
+        let matrix = Matrix::new(120, 20);
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
         let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string()).unwrap();
@@ -415,13 +446,13 @@ impl Interface {
         let mut font_title = ttf_context.load_font("./PixeloidMono.ttf", 45).unwrap();
         let mut font_stats = ttf_context.load_font("./PixeloidMono.ttf", 12).unwrap();
 
-        canvas.set_draw_color(Color::RGB(0, 255, 255));
+        canvas.set_draw_color(Colors::BG);
         canvas.clear();
         canvas.present();
         let mut event_pump = sdl_context.event_pump().unwrap();
         'running: loop {
             let loop_start = Instant::now();
-            canvas.set_draw_color(Color::RGB(128, 128, 255));
+            canvas.set_draw_color(Colors::BG);
             canvas.clear();
             for event in event_pump.poll_iter() {
                 match event {
