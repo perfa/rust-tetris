@@ -183,6 +183,9 @@ impl Engine {
     }
 
     pub fn clear_board(&mut self) {
+        self.points = 0;
+        self.rows_cleared = 0;
+        self.level = 1;
         self.board = Board::blank();
     }
 
