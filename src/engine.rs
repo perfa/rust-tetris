@@ -124,7 +124,6 @@ pub enum EngineState {
     PatternFinding,
     Animating(Instant),
     EliminatingSpace,
-    Completing,
 }
 
 pub struct Engine {
@@ -133,6 +132,7 @@ pub struct Engine {
     rng: ThreadRng,
     last_tick: Instant,
     soft_dropping: bool,
+    soft_drop_count: usize,
     pub level: usize,
     pub rows_cleared: usize,
     pub points: usize,
@@ -154,6 +154,7 @@ impl Engine {
             rows_cleared: 0,
             points: 0,
             soft_dropping: false,
+            soft_drop_count: 0,
             last_tick: Instant::now(),
             state: EngineState::Falling,
             queue: VecDeque::with_capacity(7),
@@ -189,6 +190,7 @@ impl Engine {
         self.rows_cleared = 0;
         self.level = 1;
         self.soft_dropping = false;
+        self.soft_drop_count = 0;
         self.board = Board::blank();
     }
 
@@ -265,7 +267,10 @@ impl Engine {
 
     pub fn tick(&mut self, soft_drop: bool) -> Result<(), String> {
         // println!("State: {:?}", self.state);
-        // TODO: Check true->false transition for scoring
+        if self.soft_dropping && !soft_drop {
+            self.points += self.level * self.soft_drop_count;
+            self.soft_drop_count = 0;
+        }
         self.soft_dropping = soft_drop;
         match self.state {
             EngineState::Falling => match &self.cursor {
@@ -284,6 +289,9 @@ impl Engine {
                         Self::LEVEL_TPR_IN_MS[self.level - 1] / duration_divisor;
                     if now - self.last_tick > Duration::from_millis(level_tick_duration) {
                         if c.can_lower(&self.board) {
+                            if self.soft_dropping {
+                                self.soft_drop_count += 1;
+                            }
                             self.cursor = Some(c.lower());
                             self.last_tick = now;
                             return Result::Ok(());
@@ -303,6 +311,10 @@ impl Engine {
                     }
                 }
                 if (Instant::now() - start) > Duration::from_millis(500) {
+                    if self.soft_dropping && !soft_drop {
+                        self.points += self.level * self.soft_drop_count;
+                        self.soft_drop_count = 0;
+                    }
                     if let Some(c) = &self.cursor {
                         self.board.add(c)?;
                         self.cursor = None;
@@ -334,7 +346,6 @@ impl Engine {
                 // the drawing code more concretely speaking.
                 self.state = EngineState::Animating(Instant::now());
             }
-            EngineState::Completing => todo!(), // Score, level up, etc
         }
 
         Result::Ok(())
@@ -354,7 +365,7 @@ impl Engine {
                     points += 1;
                     p = p.lower();
                 }
-                self.points += points;
+                self.points += 2 * points;
                 if let Err(_) = self.board.add(&p) {
                     return Err("Game Over".to_string());
                 }
