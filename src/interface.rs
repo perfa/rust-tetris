@@ -9,6 +9,7 @@ use sdl2::render::TextureQuery;
 use sdl2::ttf::Font;
 use sdl2::EventPump;
 use sdl2::{event::Event, render::WindowCanvas};
+use std::cmp;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
@@ -36,7 +37,9 @@ struct Matrix {
 }
 
 impl Matrix {
-    const SQUARE_SIZE: i32 = 28;
+    const SQUARE_SIZE: i32 = 27;
+    const ONE_THIRD: i32 = 9;
+    const TWO_THIRDS: i32 = 18;
     pub fn new(left_offset: i32, top_offset: i32) -> Self {
         Matrix {
             x: left_offset,
@@ -51,25 +54,40 @@ impl Matrix {
                 self.x,
                 self.y,
                 (Board::WIDTH as i32 * Matrix::SQUARE_SIZE) as u32,
-                ((Board::HEIGHT as i32 * Matrix::SQUARE_SIZE) + (Matrix::SQUARE_SIZE / 3)) as u32,
+                ((Board::HEIGHT as i32 * Matrix::SQUARE_SIZE) + Matrix::ONE_THIRD) as u32,
             ))
             .unwrap();
+
         if let Some(cursor) = engine.cursor.as_ref() {
             let minos = cursor.get_cells();
+            let pixel_offset_y = ((cursor.position.y - cursor.current_position.y) as f32 // # of squares
+                * cursor.offset  // % completed
+                * Matrix::SQUARE_SIZE as f32) as i32; // pixels/whole square
+            debug_assert!(pixel_offset_y <= Matrix::SQUARE_SIZE);
             for mino in &minos {
-                if mino.y < -1 {
+                if mino.y < -1 && pixel_offset_y < Matrix::TWO_THIRDS {
                     continue;
                 }
 
                 let height;
                 let x = self.x + (mino.x as i32) * Matrix::SQUARE_SIZE;
                 let y;
-                if mino.y == -1 {
-                    y = self.y;
-                    height = Matrix::SQUARE_SIZE as u32 / 3;
+                if mino.y <= -1 {
+                    let mino_offset = (mino.y - -1) as i32 * Matrix::SQUARE_SIZE; // 0 or 1 squares
+                    y = cmp::max(
+                        self.y as i32,
+                        self.y + (pixel_offset_y as i32 - Matrix::TWO_THIRDS) + mino_offset,
+                    );
+                    height = cmp::min(
+                        Matrix::ONE_THIRD + pixel_offset_y + mino_offset,
+                        Matrix::SQUARE_SIZE,
+                    );
                 } else {
-                    y = self.y + (mino.y as i32) * Matrix::SQUARE_SIZE + Matrix::SQUARE_SIZE / 3;
-                    height = Matrix::SQUARE_SIZE as u32;
+                    y = self.y
+                        + pixel_offset_y
+                        + (mino.y as i32) * Matrix::SQUARE_SIZE
+                        + Matrix::SQUARE_SIZE / 3;
+                    height = Matrix::SQUARE_SIZE;
                 };
                 canvas.set_draw_color(Colors::LIVE_CELL);
                 canvas
@@ -77,12 +95,12 @@ impl Matrix {
                         x + 2,
                         y + 2,
                         Matrix::SQUARE_SIZE as u32 - 4,
-                        height - 4,
+                        cmp::max(height, 4) as u32 - 4,
                     ))
                     .unwrap();
                 canvas.set_draw_color(Color::RGB(20, 20, 20));
                 canvas
-                    .draw_rect(Rect::new(x, y, Matrix::SQUARE_SIZE as u32, height))
+                    .draw_rect(Rect::new(x, y, Matrix::SQUARE_SIZE as u32, height as u32))
                     .unwrap();
             }
         }
@@ -193,7 +211,6 @@ impl Interface {
                     engine.try_move(Direction::CCW);
                 }
                 if newly_pressed.contains(&Scancode::RCtrl) {
-                    // TODO: Make soft-drop, shift to right ctrl/cmd
                     engine.try_move(Direction::CW);
                 }
                 if newly_pressed.contains(&Scancode::Space) {
@@ -201,7 +218,6 @@ impl Interface {
                         self.state = GameState::GameOver;
                     }
                 }
-                // NB: XOR!
                 if newly_pressed.contains(&Scancode::Left)
                     || newly_pressed.contains(&Scancode::Right)
                 {
@@ -295,6 +311,8 @@ impl Interface {
             let kind = engine.queue[i];
             let piece = Piece {
                 kind,
+                current_position: Coordinate::new(0, 0),
+                offset: 0.0,
                 position: Coordinate::new(0, 0),
                 rotation: Rotation::N,
             };

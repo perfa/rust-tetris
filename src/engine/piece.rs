@@ -196,6 +196,8 @@ impl Kind {
 
 #[derive(Debug)]
 pub struct Piece {
+    pub current_position: Coordinate,
+    pub offset: f32,
     pub kind: Kind,
     pub position: Coordinate,
     pub rotation: Rotation,
@@ -206,14 +208,19 @@ impl Piece {
         let shape = self.kind.cells_for(&self.rotation);
         shape
             .iter()
-            .map(|mino| Coordinate::new(mino.x + self.position.x, mino.y + self.position.y))
+            .map(|mino| {
+                Coordinate::new(
+                    mino.x + self.current_position.x,
+                    mino.y + self.current_position.y,
+                )
+            })
             .collect()
     }
 
     pub fn can_move_lateral(&mut self, board: &Board, direction: Direction) -> bool {
-        self.check_new_position(board, |cell| Coordinate {
+        self.check_new_position(board, |cell, offset| Coordinate {
             x: cell.x + direction.value(),
-            y: cell.y,
+            y: cell.y + offset,
         })
     }
 
@@ -221,6 +228,10 @@ impl Piece {
         self.position = Coordinate {
             x: self.position.x + direction.value(),
             y: self.position.y,
+        };
+        self.current_position = Coordinate {
+            x: self.current_position.x + direction.value(),
+            y: self.current_position.y,
         };
     }
 
@@ -232,7 +243,7 @@ impl Piece {
             Rotation::S => self.rotation = Rotation::W,
             Rotation::W => self.rotation = Rotation::N,
         }
-        if !self.check_new_position(board, |cell| cell) {
+        if !self.check_new_position(board, |cell, _| cell) {
             self.rotation = current_rotation;
         }
     }
@@ -245,7 +256,7 @@ impl Piece {
             Rotation::S => self.rotation = Rotation::E,
             Rotation::E => self.rotation = Rotation::N,
         }
-        if !self.check_new_position(board, |cell| cell) {
+        if !self.check_new_position(board, |cell, _| cell) {
             self.rotation = current_rotation;
         }
     }
@@ -253,10 +264,11 @@ impl Piece {
     fn check_new_position(
         &self,
         board: &Board,
-        position_adjuster: impl Fn(Coordinate) -> Coordinate,
+        position_adjuster: impl Fn(Coordinate, isize) -> Coordinate,
     ) -> bool {
+        let offset_adjustment = self.position.y - self.current_position.y;
         for cell in self.get_cells() {
-            let next_coord = position_adjuster(cell);
+            let next_coord = position_adjuster(cell, offset_adjustment);
 
             if next_coord.x < 0 || next_coord.x >= Board::WIDTH || next_coord.y >= Board::HEIGHT {
                 return false;
@@ -270,9 +282,9 @@ impl Piece {
     }
 
     pub fn can_lower(&self, board: &Board) -> bool {
-        self.check_new_position(board, |cell| Coordinate {
+        self.check_new_position(board, |cell, offset| Coordinate {
             x: cell.x,
-            y: cell.y + 1,
+            y: cell.y + 1 + offset,
         })
     }
 
@@ -282,6 +294,11 @@ impl Piece {
                 x: self.position.x,
                 y: self.position.y + 1,
             },
+            current_position: Coordinate {
+                x: self.position.x,
+                y: self.position.y,
+            },
+            offset: 0.0,
             ..*self
         }
     }

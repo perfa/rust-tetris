@@ -3,6 +3,7 @@ pub mod piece;
 use cgmath::Vector2;
 use rand::{prelude::SliceRandom, prelude::ThreadRng, thread_rng};
 use std::{
+    cmp,
     collections::VecDeque,
     time::{Duration, Instant},
 };
@@ -52,7 +53,7 @@ impl Board {
 
     fn add(&mut self, piece: &Piece) -> Result<(), String> {
         for cell in piece.get_cells() {
-            let offset = cell.y * Board::WIDTH + cell.x;
+            let offset = (cell.y + 1) * Board::WIDTH + cell.x;
             if offset < 0 {
                 return Err("Integer underflow".to_string());
             }
@@ -142,7 +143,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    const LEVEL_TPR_IN_MS: [u64; 15] = [
+    const LEVEL_TPR_IN_MS: [u32; 15] = [
         1000, 793, 618, 473, 355, 262, 190, 135, 94, 64, 43, 28, 18, 11, 7,
     ];
     pub fn new() -> Self {
@@ -150,7 +151,7 @@ impl Engine {
             board: Board::blank(),
             bag: Vec::new(),
             rng: thread_rng(),
-            level: 4,
+            level: 1,
             rows_cleared: 0,
             points: 0,
             soft_dropping: false,
@@ -204,6 +205,8 @@ impl Engine {
     pub fn place_cursor(&mut self) {
         self.cursor = Some(Piece {
             kind: self.pull_from_queue(),
+            current_position: Coordinate::new((Board::WIDTH as isize / 2) - 2, -2),
+            offset: 0.0,
             // NB: We start OFF SCREEN!
             position: Vector2::new((Board::WIDTH as isize / 2) - 2, -2),
             rotation: Rotation::N,
@@ -267,13 +270,16 @@ impl Engine {
 
     pub fn tick(&mut self, soft_drop: bool) -> Result<(), String> {
         // println!("State: {:?}", self.state);
-        if self.soft_dropping && !soft_drop {
+        let stopped_soft_dropping = if self.soft_dropping && !soft_drop {
             self.points += self.level * self.soft_drop_count;
             self.soft_drop_count = 0;
-        }
+            true
+        } else {
+            false
+        };
         self.soft_dropping = soft_drop;
         match self.state {
-            EngineState::Falling => match &self.cursor {
+            EngineState::Falling => match &mut self.cursor {
                 None => {
                     self.place_cursor();
                     if let Some(c) = &self.cursor {
@@ -284,10 +290,32 @@ impl Engine {
                 }
                 Some(c) => {
                     let now = Instant::now();
-                    let duration_divisor = if soft_drop { 20 } else { 1 };
+                    let duration_divisor = if soft_drop || stopped_soft_dropping {
+                        20
+                    } else {
+                        1
+                    };
                     let level_tick_duration =
                         Self::LEVEL_TPR_IN_MS[self.level - 1] / duration_divisor;
-                    if now - self.last_tick > Duration::from_millis(level_tick_duration) {
+                    let elapsed = now - self.last_tick;
+                    let percentage = cmp::min(level_tick_duration, elapsed.as_millis() as u32)
+                        as f32
+                        / level_tick_duration as f32;
+                    c.offset = percentage;
+                    if stopped_soft_dropping {
+                        let new_level_tick_duration = level_tick_duration * 20;
+                        /* old duration, old percentage
+                        new duration, SAME percentage --> self.tick needs to
+                        move backwards in time.
+                        new_last_tick + percentage * new_duration = now()
+                        */
+                        self.last_tick = now
+                            - Duration::from_millis(
+                                (percentage * new_level_tick_duration as f32) as u64,
+                            );
+                        return Result::Ok(());
+                    }
+                    if elapsed > Duration::from_millis(level_tick_duration as u64) {
                         if c.can_lower(&self.board) {
                             if self.soft_dropping {
                                 self.soft_drop_count += 1;
@@ -311,11 +339,11 @@ impl Engine {
                     }
                 }
                 if (Instant::now() - start) > Duration::from_millis(500) {
-                    if self.soft_dropping && !soft_drop {
-                        self.points += self.level * self.soft_drop_count;
-                        self.soft_drop_count = 0;
-                    }
                     if let Some(c) = &self.cursor {
+                        if self.soft_dropping {
+                            self.points += self.level * self.soft_drop_count;
+                            self.soft_drop_count = 0;
+                        }
                         self.board.add(c)?;
                         self.cursor = None;
                     }
@@ -357,15 +385,17 @@ impl Engine {
             Some(c) => {
                 let mut p = Piece {
                     kind: c.kind.clone(),
+                    current_position: c.position.clone(),
+                    offset: c.offset,
                     position: c.position.clone(),
                     rotation: c.rotation.clone(),
                 };
-                let mut points = 0;
+                let mut drop_height = 0;
                 while p.can_lower(&self.board) {
-                    points += 1;
+                    drop_height += 1;
                     p = p.lower();
                 }
-                self.points += 2 * points;
+                self.points += 2 * drop_height;
                 if let Err(_) = self.board.add(&p) {
                     return Err("Game Over".to_string());
                 }
