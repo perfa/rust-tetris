@@ -1,6 +1,6 @@
 extern crate sdl2;
 
-use crate::engine::piece::{Direction, Piece, Rotation};
+use crate::engine::piece::{Direction, Kind, Piece, Rotation};
 use crate::engine::{Board, Coordinate, Engine};
 use sdl2::keyboard::{Keycode, Scancode};
 use sdl2::pixels::Color;
@@ -29,6 +29,86 @@ impl Colors {
     pub const LIVE_CELL: Color = Color::RGB(150, 200, 150);
     pub const LOCKED_CELL: Color = Color::RGB(100, 150, 100);
     pub const MARKED_CELL: Color = Color::RGB(255, 100, 100);
+}
+
+struct PieceQueue {
+    x: i32,
+    y: i32,
+    shown_items: usize,
+}
+
+impl PieceQueue {
+    fn draw(&self, canvas: &mut WindowCanvas, engine: &Engine) {
+        canvas.set_draw_color(Colors::LIVE_AREA);
+        canvas
+            .fill_rect(Rect::new(
+                self.x - Matrix::SQUARE_SIZE,
+                self.y,
+                (5 * Matrix::SQUARE_SIZE) as u32,
+                (self.shown_items * 3 * Matrix::SQUARE_SIZE as usize) as u32,
+            ))
+            .unwrap();
+
+        canvas.set_draw_color(Color::BLACK);
+        canvas
+            .draw_rect(Rect::new(
+                self.x - Matrix::SQUARE_SIZE,
+                self.y,
+                (5 * Matrix::SQUARE_SIZE) as u32,
+                (self.shown_items * 3 * Matrix::SQUARE_SIZE as usize) as u32,
+            ))
+            .unwrap();
+
+        let start_position: Coordinate = Coordinate::new(self.x as isize, self.y as isize + 10);
+        for i in 0..self.shown_items {
+            let position: Coordinate =
+                start_position + Coordinate::new(0, (3 * Matrix::SQUARE_SIZE * i as i32) as isize);
+            let kind = engine.queue[i];
+            let x_adjust = if [Kind::I, Kind::O].contains(&kind) {
+                Matrix::SQUARE_SIZE / 2
+            } else {
+                0
+            };
+            let piece = Piece {
+                kind,
+                current_position: Coordinate::new(0, 0),
+                offset: 0.0,
+                position: Coordinate::new(0, 0),
+                rotation: Rotation::N,
+            };
+            for mino in piece.get_cells() {
+                if mino.y < 0 {
+                    continue;
+                }
+                canvas.set_draw_color(Colors::LIVE_CELL);
+                canvas
+                    .fill_rect(Rect::new(
+                        position.x as i32 + (2 + mino.x as i32 * Matrix::SQUARE_SIZE) - x_adjust,
+                        position.y as i32 + (2 + mino.y as i32 * Matrix::SQUARE_SIZE),
+                        Matrix::SQUARE_SIZE as u32 - 4,
+                        Matrix::SQUARE_SIZE as u32 - 4,
+                    ))
+                    .unwrap();
+                canvas.set_draw_color(Color::BLACK);
+                canvas
+                    .draw_rect(Rect::new(
+                        position.x as i32 + (mino.x as i32 * Matrix::SQUARE_SIZE) - x_adjust,
+                        position.y as i32 + (mino.y as i32 * Matrix::SQUARE_SIZE),
+                        Matrix::SQUARE_SIZE as u32,
+                        Matrix::SQUARE_SIZE as u32,
+                    ))
+                    .unwrap();
+            }
+        }
+    }
+
+    fn new(left_offset: i32, top_offset: i32) -> Self {
+        PieceQueue {
+            x: left_offset,
+            y: top_offset,
+            shown_items: 4,
+        }
+    }
 }
 
 struct Matrix {
@@ -282,66 +362,6 @@ impl Interface {
         }
     }
 
-    fn draw_queue(&self, canvas: &mut WindowCanvas, engine: &Engine) {
-        let shown_items: usize = 4;
-        canvas.set_draw_color(Colors::LIVE_AREA);
-        canvas
-            .fill_rect(Rect::new(
-                460 - Matrix::SQUARE_SIZE,
-                20,
-                (5 * Matrix::SQUARE_SIZE) as u32,
-                (shown_items * 3 * Matrix::SQUARE_SIZE as usize) as u32,
-            ))
-            .unwrap();
-
-        canvas.set_draw_color(Color::BLACK);
-        canvas
-            .draw_rect(Rect::new(
-                460 - Matrix::SQUARE_SIZE,
-                20,
-                (5 * Matrix::SQUARE_SIZE) as u32,
-                (shown_items * 3 * Matrix::SQUARE_SIZE as usize) as u32,
-            ))
-            .unwrap();
-
-        let start_position: Coordinate = Coordinate::new(460, 30);
-        for i in 0..shown_items {
-            let position: Coordinate =
-                start_position + Coordinate::new(0, (3 * Matrix::SQUARE_SIZE * i as i32) as isize);
-            let kind = engine.queue[i];
-            let piece = Piece {
-                kind,
-                current_position: Coordinate::new(0, 0),
-                offset: 0.0,
-                position: Coordinate::new(0, 0),
-                rotation: Rotation::N,
-            };
-            for mino in piece.get_cells() {
-                if mino.y < 0 {
-                    continue;
-                }
-                canvas.set_draw_color(Colors::LIVE_CELL);
-                canvas
-                    .fill_rect(Rect::new(
-                        position.x as i32 + (2 + mino.x as i32 * Matrix::SQUARE_SIZE),
-                        position.y as i32 + (2 + mino.y as i32 * Matrix::SQUARE_SIZE),
-                        Matrix::SQUARE_SIZE as u32 - 4,
-                        Matrix::SQUARE_SIZE as u32 - 4,
-                    ))
-                    .unwrap();
-                canvas.set_draw_color(Color::BLACK);
-                canvas
-                    .draw_rect(Rect::new(
-                        position.x as i32 + (mino.x as i32 * Matrix::SQUARE_SIZE),
-                        position.y as i32 + (mino.y as i32 * Matrix::SQUARE_SIZE),
-                        Matrix::SQUARE_SIZE as u32,
-                        Matrix::SQUARE_SIZE as u32,
-                    ))
-                    .unwrap();
-            }
-        }
-    }
-
     fn draw_text(
         &self,
         msg: &str,
@@ -353,6 +373,7 @@ impl Interface {
         centered: bool,
     ) {
         let texture_creator = canvas.texture_creator();
+
         // render a surface, and convert it to a texture bound to the canvas
         let surface = font
             .render(msg)
@@ -368,19 +389,16 @@ impl Interface {
         let x_pos;
         let y_pos;
         if centered {
-            let (canvas_width, canvas_height) = canvas
-                .output_size()
-                .map_err(|e| println!("{:?}", e))
-                .unwrap();
+            let (canvas_width, canvas_height) = canvas.viewport().size();
             x_pos = if width > canvas_width {
                 0
             } else {
                 (canvas_width - width) / 2
             };
-            y_pos = if height > canvas_height {
-                0
+            y_pos = if (height + y) > canvas_height {
+                y
             } else {
-                (canvas_height - height) / 2
+                (canvas_height - height) / 2 + y
             };
         } else {
             x_pos = x;
@@ -396,8 +414,15 @@ impl Interface {
             .unwrap();
     }
 
-    fn draw_title(&self, msg: &str, canvas: &mut WindowCanvas, font: &mut Font) {
-        self.draw_text(msg, canvas, font, Color::RED, 20, 200, true)
+    fn draw_title(
+        &self,
+        msg: &str,
+        canvas: &mut WindowCanvas,
+        font: &mut Font,
+        offset: Option<u32>,
+    ) {
+        let y_offset = offset.unwrap_or(0);
+        self.draw_text(msg, canvas, font, Color::RED, 0, y_offset, true)
     }
 
     fn draw_stats(&self, canvas: &mut WindowCanvas, engine: &Engine, font: &mut Font) {
@@ -455,6 +480,7 @@ impl Interface {
     pub fn run(&mut self, engine: &mut Engine) {
         engine.place_cursor();
         let matrix = Matrix::new(120, 20);
+        let mut queue = PieceQueue::new(460, 20);
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
         let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string()).unwrap();
@@ -489,12 +515,28 @@ impl Interface {
                         keycode: Some(Keycode::Q),
                         ..
                     } => break 'running,
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Period),
+                        ..
+                    } => queue.shown_items = cmp::min(7, queue.shown_items + 1),
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Comma),
+                        ..
+                    } => queue.shown_items = cmp::max(1, queue.shown_items - 1),
                     _ => {}
                 }
             }
             self.handle_input(engine, &mut event_pump);
             match self.state {
-                GameState::TitleScreen => self.draw_title("Tetris", &mut canvas, &mut font_title),
+                GameState::TitleScreen => {
+                    self.draw_title("Tetris", &mut canvas, &mut font_title, None);
+                    self.draw_title(
+                        ">PRESS SPACE TO START<",
+                        &mut canvas,
+                        &mut font_stats,
+                        Some(60),
+                    );
+                }
                 GameState::Playing => {
                     match engine.tick(self.soft_drop) {
                         Err(e) => {
@@ -505,16 +547,16 @@ impl Interface {
                     }
                     matrix.draw(&mut canvas, &engine);
                     self.draw_stats(&mut canvas, &engine, &mut font_stats);
-                    self.draw_queue(&mut canvas, &engine);
+                    queue.draw(&mut canvas, &engine);
                 }
                 GameState::Paused => {
                     matrix.draw(&mut canvas, &engine);
                     self.draw_stats(&mut canvas, &engine, &mut font_stats);
-                    self.draw_queue(&mut canvas, &engine);
-                    self.draw_title(">PAUSE<", &mut canvas, &mut font_title)
+                    queue.draw(&mut canvas, &engine);
+                    self.draw_title(">PAUSE<", &mut canvas, &mut font_title, None)
                 }
                 GameState::GameOver => {
-                    self.draw_title("GAME OVER. :(", &mut canvas, &mut font_title)
+                    self.draw_title("GAME OVER. :(", &mut canvas, &mut font_title, None)
                 }
             }
 
