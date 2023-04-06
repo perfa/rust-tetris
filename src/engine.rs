@@ -11,11 +11,17 @@ use std::{
 use self::piece::{Direction, Kind, Piece, Rotation};
 
 pub type Coordinate = Vector2<isize>;
+#[derive(Clone, Copy, Debug)]
+pub struct CellData {
+    pub coord: Coordinate,
+    pub kind: Kind,
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Cell {
     filled: bool,
     marked: bool,
+    kind: Option<Kind>,
 }
 
 impl Cell {
@@ -23,6 +29,7 @@ impl Cell {
         Cell {
             filled: false,
             marked: false,
+            kind: None,
         }
     }
 }
@@ -57,7 +64,11 @@ impl Board {
             if offset < 0 {
                 return Err("Integer underflow".to_string());
             }
+            if offset > Board::SIZE {
+                continue;
+            }
             self.0[offset as usize].filled = true;
+            self.0[offset as usize].kind = Some(piece.kind);
         }
         Ok(())
     }
@@ -106,8 +117,9 @@ impl Board {
                         let offset_below = ((row + 1) * Board::WIDTH + col) as usize;
                         if self.0[offset].filled {
                             moved_cell = true;
-                            self.0[offset] = Cell::new();
                             self.0[offset_below].filled = true;
+                            self.0[offset_below].kind = self.0[offset].kind;
+                            self.0[offset] = Cell::new();
                         }
                     }
                 }
@@ -151,7 +163,7 @@ impl Engine {
             board: Board::blank(),
             bag: Vec::new(),
             rng: thread_rng(),
-            level: 1,
+            level: 3,
             rows_cleared: 0,
             points: 0,
             soft_dropping: false,
@@ -242,13 +254,16 @@ impl Engine {
         }
     }
 
-    pub fn get_pile(&self) -> Vec<Coordinate> {
-        let mut cells: Vec<Coordinate> = vec![];
+    pub fn get_pile(&self) -> Vec<CellData> {
+        let mut cells: Vec<CellData> = vec![];
         for offset in 0..Board::SIZE {
             if self.board.0[offset as usize].filled & !self.board.0[offset as usize].marked {
-                cells.push(Coordinate {
-                    x: offset % Board::WIDTH,
-                    y: offset / Board::WIDTH,
+                cells.push(CellData {
+                    coord: Coordinate {
+                        x: offset % Board::WIDTH,
+                        y: offset / Board::WIDTH,
+                    },
+                    kind: self.board.0[offset as usize].kind.unwrap_or(Kind::O),
                 })
             }
         }

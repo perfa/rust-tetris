@@ -26,9 +26,96 @@ struct Colors;
 impl Colors {
     pub const BG: Color = Color::RGB(128, 128, 255);
     pub const LIVE_AREA: Color = Color::RGB(187, 183, 190);
-    pub const LIVE_CELL: Color = Color::RGB(150, 200, 150);
-    pub const LOCKED_CELL: Color = Color::RGB(100, 150, 100);
     pub const MARKED_CELL: Color = Color::RGB(255, 100, 100);
+    pub const PAL1_1: Color = Color::RGB(101, 187, 249);
+    pub const PAL1_2: Color = Color::RGB(35, 86, 237);
+    pub const PAL1_3: Color = Color::RGB(240, 250, 252);
+    pub const PAL2_1: Color = Color::RGB(75, 165, 47);
+    pub const PAL2_2: Color = Color::RGB(147, 206, 66);
+    pub const PAL2_3: Color = Color::RGB(176, 215, 164);
+    pub const PAL3_1: Color = Color::RGB(232, 127, 242);
+    pub const PAL3_2: Color = Color::RGB(201, 42, 199);
+    pub const PAL3_3: Color = Color::RGB(233, 174, 232);
+    pub const PAL4_1: Color = Color::RGB(127, 216, 105);
+    pub const PAL4_2: Color = Color::RGB(36, 87, 239);
+    pub const PAL4_3: Color = Color::RGB(221, 228, 250);
+    pub const PAL5_1: Color = Color::RGB(136, 245, 161);
+    pub const PAL5_2: Color = Color::RGB(212, 45, 93);
+    pub const PAL5_3: Color = Color::RGB(240, 187, 202);
+    pub const PAL6_1: Color = Color::RGB(113, 135, 243);
+    pub const PAL6_2: Color = Color::RGB(136, 245, 161);
+    pub const PAL6_3: Color = Color::RGB(224, 251, 230);
+    pub const PAL7_1: Color = Color::RGB(127, 127, 127);
+    pub const PAL7_2: Color = Color::RGB(228, 74, 37);
+    pub const PAL7_3: Color = Color::RGB(247, 210, 201);
+
+    pub fn color_for(level: usize, kind: &Kind) -> Color {
+        match level {
+            2 => match kind {
+                Kind::I => Colors::PAL2_1,
+                Kind::O => Colors::PAL2_1,
+                Kind::T => Colors::PAL2_1,
+                Kind::L => Colors::PAL2_2,
+                Kind::J => Colors::PAL2_2,
+                Kind::S => Colors::PAL2_3,
+                Kind::Z => Colors::PAL2_3,
+            },
+            3 => match kind {
+                Kind::I => Colors::PAL3_1,
+                Kind::O => Colors::PAL3_1,
+                Kind::T => Colors::PAL3_1,
+                Kind::L => Colors::PAL3_2,
+                Kind::J => Colors::PAL3_2,
+                Kind::S => Colors::PAL3_3,
+                Kind::Z => Colors::PAL3_3,
+            },
+            4 => match kind {
+                Kind::I => Colors::PAL4_1,
+                Kind::O => Colors::PAL4_1,
+                Kind::T => Colors::PAL4_1,
+                Kind::L => Colors::PAL4_2,
+                Kind::J => Colors::PAL4_2,
+                Kind::S => Colors::PAL4_3,
+                Kind::Z => Colors::PAL4_3,
+            },
+            5 => match kind {
+                Kind::I => Colors::PAL5_1,
+                Kind::O => Colors::PAL5_1,
+                Kind::T => Colors::PAL5_1,
+                Kind::L => Colors::PAL5_2,
+                Kind::J => Colors::PAL5_2,
+                Kind::S => Colors::PAL5_3,
+                Kind::Z => Colors::PAL5_3,
+            },
+            6 => match kind {
+                Kind::I => Colors::PAL6_1,
+                Kind::O => Colors::PAL6_1,
+                Kind::T => Colors::PAL6_1,
+                Kind::L => Colors::PAL6_2,
+                Kind::J => Colors::PAL6_2,
+                Kind::S => Colors::PAL6_3,
+                Kind::Z => Colors::PAL6_3,
+            },
+            7 => match kind {
+                Kind::I => Colors::PAL7_1,
+                Kind::O => Colors::PAL7_1,
+                Kind::T => Colors::PAL7_1,
+                Kind::L => Colors::PAL7_2,
+                Kind::J => Colors::PAL7_2,
+                Kind::S => Colors::PAL7_3,
+                Kind::Z => Colors::PAL7_3,
+            },
+            _ => match kind {
+                Kind::I => Colors::PAL1_1,
+                Kind::O => Colors::PAL1_1,
+                Kind::T => Colors::PAL1_1,
+                Kind::L => Colors::PAL1_2,
+                Kind::J => Colors::PAL1_2,
+                Kind::S => Colors::PAL1_3,
+                Kind::Z => Colors::PAL1_3,
+            },
+        }
+    }
 }
 
 struct PieceQueue {
@@ -38,7 +125,7 @@ struct PieceQueue {
 }
 
 impl PieceQueue {
-    fn draw(&self, canvas: &mut WindowCanvas, engine: &Engine) {
+    fn draw(&self, level: usize, canvas: &mut WindowCanvas, engine: &Engine) {
         canvas.set_draw_color(Colors::LIVE_AREA);
         canvas
             .fill_rect(Rect::new(
@@ -80,7 +167,7 @@ impl PieceQueue {
                 if mino.y < 0 {
                     continue;
                 }
-                canvas.set_draw_color(Colors::LIVE_CELL);
+                canvas.set_draw_color(Colors::color_for(level, &kind));
                 canvas
                     .fill_rect(Rect::new(
                         position.x as i32 + (2 + mino.x as i32 * Matrix::SQUARE_SIZE) - x_adjust,
@@ -127,7 +214,7 @@ impl Matrix {
         }
     }
 
-    pub fn draw(&self, canvas: &mut WindowCanvas, engine: &Engine) {
+    pub fn draw(&self, level: usize, canvas: &mut WindowCanvas, engine: &Engine) {
         canvas.set_draw_color(Colors::LIVE_AREA);
         canvas
             .fill_rect(Rect::new(
@@ -169,7 +256,8 @@ impl Matrix {
                         + Matrix::SQUARE_SIZE / 3;
                     height = Matrix::SQUARE_SIZE;
                 };
-                canvas.set_draw_color(Colors::LIVE_CELL);
+
+                canvas.set_draw_color(Colors::color_for(level, &cursor.kind));
                 canvas
                     .fill_rect(Rect::new(
                         x + 2,
@@ -186,11 +274,15 @@ impl Matrix {
         }
 
         for cell in engine.get_pile() {
-            canvas.set_draw_color(Colors::LOCKED_CELL);
+            let (r, g, b) = Colors::color_for(level, &cell.kind).rgb();
+            let locked_color = Color::RGB(r - 20, g - 20, b - 20);
+            canvas.set_draw_color(locked_color);
             canvas
                 .fill_rect(Rect::new(
-                    2 + self.x + (cell.x as i32) * Matrix::SQUARE_SIZE,
-                    2 + self.y + (cell.y as i32) * Matrix::SQUARE_SIZE + Matrix::SQUARE_SIZE / 3,
+                    2 + self.x + (cell.coord.x as i32) * Matrix::SQUARE_SIZE,
+                    2 + self.y
+                        + (cell.coord.y as i32) * Matrix::SQUARE_SIZE
+                        + Matrix::SQUARE_SIZE / 3,
                     Matrix::SQUARE_SIZE as u32 - 4,
                     Matrix::SQUARE_SIZE as u32 - 4,
                 ))
@@ -198,8 +290,8 @@ impl Matrix {
             canvas.set_draw_color(Color::BLACK);
             canvas
                 .draw_rect(Rect::new(
-                    self.x + (cell.x as i32) * Matrix::SQUARE_SIZE,
-                    self.y + (cell.y as i32) * Matrix::SQUARE_SIZE + Matrix::SQUARE_SIZE / 3,
+                    self.x + (cell.coord.x as i32) * Matrix::SQUARE_SIZE,
+                    self.y + (cell.coord.y as i32) * Matrix::SQUARE_SIZE + Matrix::SQUARE_SIZE / 3,
                     Matrix::SQUARE_SIZE as u32,
                     Matrix::SQUARE_SIZE as u32,
                 ))
@@ -523,6 +615,14 @@ impl Interface {
                         keycode: Some(Keycode::Comma),
                         ..
                     } => queue.shown_items = cmp::max(1, queue.shown_items - 1),
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Plus),
+                        ..
+                    } => engine.level = cmp::min(15, engine.level + 1),
+                    Event::KeyDown {
+                        keycode: Some(Keycode::Num0),
+                        ..
+                    } => engine.level = cmp::max(1, engine.level - 1),
                     _ => {}
                 }
             }
@@ -545,14 +645,14 @@ impl Interface {
                         }
                         Ok(()) => (),
                     }
-                    matrix.draw(&mut canvas, &engine);
+                    matrix.draw(engine.level, &mut canvas, &engine);
                     self.draw_stats(&mut canvas, &engine, &mut font_stats);
-                    queue.draw(&mut canvas, &engine);
+                    queue.draw(engine.level, &mut canvas, &engine);
                 }
                 GameState::Paused => {
-                    matrix.draw(&mut canvas, &engine);
+                    matrix.draw(engine.level, &mut canvas, &engine);
                     self.draw_stats(&mut canvas, &engine, &mut font_stats);
-                    queue.draw(&mut canvas, &engine);
+                    queue.draw(engine.level, &mut canvas, &engine);
                     self.draw_title(">PAUSE<", &mut canvas, &mut font_title, None)
                 }
                 GameState::GameOver => {
